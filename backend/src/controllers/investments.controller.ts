@@ -384,10 +384,23 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
   today.setHours(0, 0, 0, 0);
   const todayEnd = new Date(today);
   todayEnd.setHours(23, 59, 59, 999);
-  const weekEnd = new Date(today);
-  weekEnd.setDate(weekEnd.getDate() + 7);
+
   const urgentCutoff = new Date(today);
   urgentCutoff.setDate(urgentCutoff.getDate() + 3);
+
+  const sevenDaysOut = new Date(today);
+  sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
+  sevenDaysOut.setHours(23, 59, 59, 999);
+
+  // Next calendar month
+  const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
+  const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0, 23, 59, 59, 999);
+
+  const activeStatuses = { in: ['active', 'extended'] as any[] };
+  const investmentSelect = {
+    id: true, clientName: true, plotNumber: true, principal: true,
+    maturityAmount: true, maturityDate: true, status: true, realtorName: true,
+  } as const;
 
   const [
     totalActive,
@@ -397,42 +410,31 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
     maturingThisWeek,
     overdueInvestments,
     totalActiveValue,
-    recentActivity,
     recentInvestments,
     investmentsToday,
     urgentInvestments,
+    maturingIn7Days,
+    maturingNextMonth,
   ] = await Promise.all([
     prisma.investment.count({ where: { status: 'active' } }),
     prisma.investment.count({ where: { status: 'completed' } }),
     prisma.investment.count({ where: { status: 'extended' } }),
     prisma.investment.count({ where: { status: 'payment_initiated' } }),
     prisma.investment.count({
-      where: { maturityDate: { gte: today, lt: weekEnd }, status: { in: ['active', 'extended'] } },
+      where: { maturityDate: { gte: today, lte: sevenDaysOut }, status: activeStatuses },
     }),
     prisma.investment.count({
-      where: { maturityDate: { lt: today }, status: { in: ['active', 'extended'] } },
+      where: { maturityDate: { lt: today }, status: activeStatuses },
     }),
     prisma.investment.aggregate({
-      where: { status: { in: ['active', 'extended'] } },
+      where: { status: activeStatuses },
       _sum: { maturityAmount: true },
     }),
-    req.user!.role !== 'accountant'
-      ? prisma.auditLog.findMany({
-          take: 10,
-          orderBy: { createdAt: 'desc' },
-          include: { user: { select: { fullName: true } } },
-        })
-      : Promise.resolve([]),
-    // 5 most recent investments
     prisma.investment.findMany({
       take: 5,
       orderBy: { createdAt: 'desc' },
-      select: {
-        id: true, clientName: true, plotNumber: true, principal: true,
-        maturityAmount: true, maturityDate: true, status: true, createdAt: true,
-      },
+      select: investmentSelect,
     }),
-    // Investments created today OR maturing today
     prisma.investment.findMany({
       where: {
         OR: [
@@ -441,25 +443,31 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
         ],
       },
       orderBy: { maturityDate: 'asc' },
-      select: {
-        id: true, clientName: true, plotNumber: true, principal: true,
-        maturityAmount: true, maturityDate: true, transactionDate: true, status: true,
-      },
+      select: { ...investmentSelect, transactionDate: true },
     }),
     // Urgent: overdue OR maturing within 3 days OR payment initiated
     prisma.investment.findMany({
       where: {
         OR: [
-          { maturityDate: { lt: today }, status: { in: ['active', 'extended'] } },
-          { maturityDate: { gte: today, lt: urgentCutoff }, status: { in: ['active', 'extended'] } },
+          { maturityDate: { lt: today }, status: activeStatuses },
+          { maturityDate: { gte: today, lt: urgentCutoff }, status: activeStatuses },
           { status: 'payment_initiated' },
         ],
       },
       orderBy: { maturityDate: 'asc' },
-      select: {
-        id: true, clientName: true, plotNumber: true, principal: true,
-        maturityAmount: true, maturityDate: true, status: true,
-      },
+      select: investmentSelect,
+    }),
+    // Maturing within next 7 days
+    prisma.investment.findMany({
+      where: { maturityDate: { gte: today, lte: sevenDaysOut }, status: activeStatuses },
+      orderBy: { maturityDate: 'asc' },
+      select: investmentSelect,
+    }),
+    // Maturing in the next calendar month
+    prisma.investment.findMany({
+      where: { maturityDate: { gte: nextMonthStart, lte: nextMonthEnd }, status: activeStatuses },
+      orderBy: { maturityDate: 'asc' },
+      select: investmentSelect,
     }),
   ]);
 
@@ -471,10 +479,11 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
     maturingThisWeek,
     overdueInvestments,
     totalActiveValue: totalActiveValue._sum.maturityAmount || 0,
-    recentActivity,
     recentInvestments,
     investmentsToday,
     urgentInvestments,
+    maturingIn7Days,
+    maturingNextMonth,
   });
 }
 
