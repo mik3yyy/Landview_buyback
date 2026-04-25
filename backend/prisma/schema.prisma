@@ -1,0 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  super_admin
+  admin
+  accountant
+}
+
+enum InvestmentStatus {
+  active
+  completed
+  extended
+  payment_initiated
+}
+
+enum ActionType {
+  LOGIN
+  LOGOUT
+  FAILED_LOGIN
+  CREATE_INVESTMENT
+  UPDATE_INVESTMENT
+  DELETE_INVESTMENT
+  EXTEND_INVESTMENT
+  PAYMENT_INITIATED
+  PAYMENT_COMPLETED
+  CREATE_USER
+  UPDATE_USER
+  DELETE_USER
+  AI_UPLOAD
+  EMAIL_SENT
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  passwordHash String
+  fullName  String
+  role      Role     @default(accountant)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  createdByUser     User?  @relation("CreatedBy", fields: [createdBy], references: [id])
+  createdUsers      User[] @relation("CreatedBy")
+  investments       Investment[] @relation("CreatedByUser")
+  auditLogs         AuditLog[]
+  paymentInitiated  Investment[] @relation("PaymentInitiatedBy")
+  paymentCompleted  Investment[] @relation("PaymentCompletedBy")
+
+  @@map("users")
+}
+
+model Investment {
+  id                  String           @id @default(uuid())
+  transactionDate     DateTime
+  clientName          String
+  plotNumber          String
+  duration            String
+  maturityDate        DateTime
+  principal           Decimal          @db.Decimal(15, 2)
+  interestRate        Decimal          @db.Decimal(5, 2)
+  roiAmount           Decimal          @db.Decimal(15, 2)
+  upfrontPayment      Decimal?         @db.Decimal(15, 2)
+  maturityAmount      Decimal          @db.Decimal(15, 2)
+  clientEmail         String?
+  realtorName         String
+  realtorEmail        String
+  status              InvestmentStatus @default(active)
+  documentUrl         String?
+  paymentInitiatedAt  DateTime?
+  paymentCompletedAt  DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  createdBy           String
+  createdByUser       User             @relation("CreatedByUser", fields: [createdBy], references: [id])
+  paymentInitiatedBy  String?
+  paymentInitiatedUser User?           @relation("PaymentInitiatedBy", fields: [paymentInitiatedBy], references: [id])
+  paymentCompletedBy  String?
+  paymentCompletedUser User?           @relation("PaymentCompletedBy", fields: [paymentCompletedBy], references: [id])
+
+  extensions          InvestmentExtension[]
+
+  @@map("investments")
+}
+
+model InvestmentExtension {
+  id              String     @id @default(uuid())
+  investmentId    String
+  investment      Investment @relation(fields: [investmentId], references: [id])
+  previousDuration String
+  newDuration     String
+  previousMaturityDate DateTime
+  newMaturityDate DateTime
+  previousInterestRate Decimal @db.Decimal(5, 2)
+  newInterestRate Decimal @db.Decimal(5, 2)
+  extendedAt      DateTime   @default(now())
+  extendedBy      String
+
+  @@map("investment_extensions")
+}
+
+model AuditLog {
+  id           String     @id @default(uuid())
+  userId       String?
+  user         User?      @relation(fields: [userId], references: [id])
+  actionType   ActionType
+  entityType   String
+  entityId     String?
+  oldValues    Json?
+  newValues    Json?
+  ipAddress    String?
+  userAgent    String?
+  description  String?
+  createdAt    DateTime   @default(now())
+
+  @@map("audit_logs")
+}
+
+model SystemSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+
+  @@map("system_settings")
+}
