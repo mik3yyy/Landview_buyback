@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import Modal from '../../components/ui/Modal';
 import ConfirmModal from '../../components/ui/ConfirmModal';
 import { UserPlus, Edit, Trash2, CheckCircle, XCircle, Shield } from 'lucide-react';
+import { useBackgroundFetch } from '../../hooks/useBackgroundFetch';
 import toast from 'react-hot-toast';
 
 const roleColors: Record<string, string> = {
@@ -29,8 +30,6 @@ interface UserFormData {
 const defaultForm: UserFormData = { email: '', password: '', fullName: '', role: 'accountant' };
 
 export default function UserManagement() {
-  const [users, setUsers] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingUser, setEditingUser] = useState<any>(null);
   const [deletingUser, setDeletingUser] = useState<any>(null);
@@ -39,15 +38,16 @@ export default function UserManagement() {
   const [deleting, setDeleting] = useState(false);
   const { isSuperAdmin, user: currentUser } = useAuth();
 
-  const fetchUsers = () => {
-    setLoading(true);
-    usersAPI.list()
-      .then(res => setUsers(res.data))
-      .catch(() => toast.error('Failed to load users'))
-      .finally(() => setLoading(false));
-  };
+  const { data, loading, refreshing, error, refresh } = useBackgroundFetch<any[]>(
+    'users',
+    () => usersAPI.list().then(r => r.data)
+  );
 
-  useEffect(() => { fetchUsers(); }, []);
+  useEffect(() => {
+    if (error) toast.error('Failed to load users');
+  }, [error]);
+
+  const users = data ?? [];
 
   const openCreate = () => { setForm(defaultForm); setShowCreateModal(true); };
   const openEdit = (u: any) => {
@@ -70,7 +70,7 @@ export default function UserManagement() {
         toast.success('User created');
         setShowCreateModal(false);
       }
-      fetchUsers();
+      refresh();
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to save user');
     } finally {
@@ -82,7 +82,7 @@ export default function UserManagement() {
     try {
       await usersAPI.update(u.id, { isActive: !u.isActive });
       toast.success(u.isActive ? 'User deactivated' : 'User activated');
-      fetchUsers();
+      refresh();
     } catch { toast.error('Failed to update user'); }
   };
 
@@ -92,7 +92,7 @@ export default function UserManagement() {
       await usersAPI.delete(deletingUser.id);
       toast.success('User deactivated');
       setDeletingUser(null);
-      fetchUsers();
+      refresh();
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed');
     } finally {
@@ -107,9 +107,12 @@ export default function UserManagement() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Shield size={24} className="text-blue-600" /> User Management
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <Shield size={24} className="text-blue-600" /> User Management
+            </h1>
+            {refreshing && <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" title="Updating..." />}
+          </div>
           <p className="text-gray-500 text-sm">{users.length} system users</p>
         </div>
         <button onClick={openCreate} className="btn-primary flex items-center gap-2">
@@ -132,7 +135,7 @@ export default function UserManagement() {
             {loading ? (
               <tr><td colSpan={5} className="text-center py-10 text-gray-400">Loading...</td></tr>
             ) : users.map(u => (
-              <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+              <tr key={u.id} className={`hover:bg-gray-50 transition-colors ${refreshing ? 'opacity-75' : ''}`}>
                 <td className="px-5 py-3">
                   <div className="font-medium text-gray-900">{u.fullName}</div>
                   <div className="text-xs text-gray-400">{u.email}</div>

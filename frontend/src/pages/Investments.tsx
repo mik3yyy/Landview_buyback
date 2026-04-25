@@ -1,16 +1,14 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Search, Filter, Download, Eye, Edit, Trash2, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
 import { investmentsAPI } from '../api/client';
 import { formatCurrency, formatDate, getDaysLabel, downloadBlob } from '../utils/formatters';
 import StatusBadge from '../components/ui/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
+import { useBackgroundFetch, clearCache } from '../hooks/useBackgroundFetch';
 import toast from 'react-hot-toast';
 
 export default function Investments() {
-  const [investments, setInvestments] = useState<any[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -23,25 +21,28 @@ export default function Investments() {
   const order = searchParams.get('order') || 'desc';
   const limit = 20;
 
-  const fetchInvestments = useCallback(async () => {
-    setLoading(true);
-    try {
+  const cacheKey = `investments:${status}:${search}:${page}:${sort}:${order}`;
+
+  const { data, loading, refreshing, error, refresh } = useBackgroundFetch<{ investments: any[]; total: number }>(
+    cacheKey,
+    async () => {
       const params: Record<string, string> = { page: String(page), limit: String(limit) };
       if (status) params.status = status;
       if (search) params.search = search;
       if (sort) params.sort_by = sort;
       if (order) params.order = order;
       const res = await investmentsAPI.list(params);
-      setInvestments(res.data.investments);
-      setTotal(res.data.total);
-    } catch {
-      toast.error('Failed to load investments');
-    } finally {
-      setLoading(false);
+      return res.data;
     }
-  }, [status, search, page, sort, order]);
+  );
 
-  useEffect(() => { fetchInvestments(); }, [fetchInvestments]);
+  useEffect(() => {
+    if (error) toast.error('Failed to load investments');
+  }, [error]);
+
+  const investments = data?.investments ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.ceil(total / limit);
 
   const updateParam = (key: string, value: string) => {
     const p = new URLSearchParams(searchParams);
@@ -69,7 +70,9 @@ export default function Investments() {
       await investmentsAPI.delete(confirmDelete.id);
       toast.success('Investment deleted');
       setConfirmDelete(null);
-      fetchInvestments();
+      clearCache('investments:');
+      clearCache('dashboard');
+      refresh();
     } catch {
       toast.error('Failed to delete investment');
     } finally {
@@ -88,13 +91,14 @@ export default function Investments() {
     }
   };
 
-  const totalPages = Math.ceil(total / limit);
-
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Investments</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">Investments</h1>
+            {refreshing && <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" title="Updating..." />}
+          </div>
           <p className="text-gray-500 text-sm">{total} total records</p>
         </div>
         <div className="flex gap-3">
@@ -174,7 +178,7 @@ export default function Investments() {
                 const days = inv.daysUntilMaturity;
                 const isOverdue = (inv.status === 'active' || inv.status === 'extended') && days < 0;
                 return (
-                  <tr key={inv.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={inv.id} className={`hover:bg-gray-50 transition-colors ${refreshing ? 'opacity-75' : ''}`}>
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{inv.clientName}</div>
                       <div className="text-xs text-gray-400">{inv.clientEmail || '—'}</div>
@@ -207,7 +211,6 @@ export default function Investments() {
                           <button
                             onClick={() => setConfirmDelete({ id: inv.id, name: inv.clientName })}
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                            title="Delete investment"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -262,11 +265,7 @@ export default function Investments() {
               This action cannot be undone.
             </p>
             <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setConfirmDelete(null)}
-                className="btn-secondary"
-                disabled={!!deletingId}
-              >
+              <button onClick={() => setConfirmDelete(null)} className="btn-secondary" disabled={!!deletingId}>
                 Cancel
               </button>
               <button

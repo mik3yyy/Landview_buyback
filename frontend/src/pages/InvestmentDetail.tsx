@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Edit, TrendingUp, Calendar, Clock, User,
-  Mail, Home, CheckCircle, AlertTriangle, RefreshCw, Trash2
+  Mail, Home, CheckCircle, RefreshCw, Trash2
 } from 'lucide-react';
 import { investmentsAPI } from '../api/client';
 import { formatCurrency, formatDate, formatDateTime, getDaysLabel } from '../utils/formatters';
@@ -10,6 +10,7 @@ import StatusBadge from '../components/ui/StatusBadge';
 import ConfirmModal from '../components/ui/ConfirmModal';
 import Modal from '../components/ui/Modal';
 import { useAuth } from '../contexts/AuthContext';
+import { useBackgroundFetch, invalidateCache, clearCache } from '../hooks/useBackgroundFetch';
 import toast from 'react-hot-toast';
 
 interface ExtendFormData {
@@ -22,34 +23,34 @@ export default function InvestmentDetail() {
   const navigate = useNavigate();
   const { isAdminOrAbove, isSuperAdmin } = useAuth();
 
-  const [investment, setInvestment] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
-
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [extendForm, setExtendForm] = useState<ExtendFormData>({ new_duration: '6 months', new_interest_rate: '' });
 
-  const fetchInvestment = async () => {
-    try {
-      const res = await investmentsAPI.get(id!);
-      setInvestment(res.data);
-    } catch {
-      toast.error('Failed to load investment');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: investment, loading, refreshing, error, refresh } = useBackgroundFetch<any>(
+    `investment:${id}`,
+    () => investmentsAPI.get(id!).then(r => r.data)
+  );
 
-  useEffect(() => { fetchInvestment(); }, [id]);
+  useEffect(() => {
+    if (error) toast.error('Failed to load investment');
+  }, [error]);
+
+  const afterMutation = () => {
+    invalidateCache(`investment:${id}`);
+    clearCache('investments:');
+    invalidateCache('dashboard');
+    refresh();
+  };
 
   const handleMarkPaymentInitiated = async () => {
     setActionLoading(true);
     try {
       await investmentsAPI.markPaymentInitiated(id!);
       toast.success('Payment marked as initiated');
-      fetchInvestment();
+      afterMutation();
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed');
     } finally {
@@ -63,7 +64,7 @@ export default function InvestmentDetail() {
       await investmentsAPI.markPaymentCompleted(id!);
       toast.success('Payment marked as completed');
       setShowCompleteModal(false);
-      fetchInvestment();
+      afterMutation();
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed');
     } finally {
@@ -78,7 +79,7 @@ export default function InvestmentDetail() {
       await investmentsAPI.extend(id!, extendForm);
       toast.success('Investment extended successfully');
       setShowExtendModal(false);
-      fetchInvestment();
+      afterMutation();
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to extend');
     } finally {
@@ -91,10 +92,11 @@ export default function InvestmentDetail() {
     try {
       await investmentsAPI.delete(id!);
       toast.success('Investment deleted');
+      clearCache('investments:');
+      invalidateCache('dashboard');
       navigate('/investments');
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to delete');
-    } finally {
       setActionLoading(false);
     }
   };
@@ -119,6 +121,7 @@ export default function InvestmentDetail() {
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900">{investment.clientName}</h1>
               <StatusBadge status={investment.status} daysUntilMaturity={days} />
+              {refreshing && <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" title="Updating..." />}
             </div>
             <p className="text-gray-500 text-sm mt-0.5">Plot: {investment.plotNumber} • Created {formatDate(investment.createdAt)}</p>
           </div>
@@ -285,12 +288,7 @@ export default function InvestmentDetail() {
           {investment.documentUrl && (
             <div className="card">
               <h2 className="font-semibold text-gray-900 mb-3 text-sm">Source Document</h2>
-              <a
-                href={investment.documentUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-blue-600 hover:underline text-sm"
-              >
+              <a href={investment.documentUrl} target="_blank" rel="noreferrer" className="text-blue-600 hover:underline text-sm">
                 View Document
               </a>
             </div>

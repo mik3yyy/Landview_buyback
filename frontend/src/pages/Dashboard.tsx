@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  TrendingUp, FileText, CheckCircle, Clock, AlertTriangle,
+  TrendingUp, FileText, CheckCircle, Clock,
   ArrowRight, PlusCircle, Upload, Flame, CalendarCheck, List,
 } from 'lucide-react';
 import { investmentsAPI } from '../api/client';
 import { formatCurrency, formatDateTime, formatDate } from '../utils/formatters';
 import { useAuth } from '../contexts/AuthContext';
+import { useBackgroundFetch } from '../hooks/useBackgroundFetch';
 import toast from 'react-hot-toast';
 
 interface InvestmentRow {
@@ -138,16 +139,16 @@ const actionTypeLabels: Record<string, string> = {
 };
 
 export default function Dashboard() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [loading, setLoading] = useState(true);
   const { user, isAdminOrAbove } = useAuth();
 
+  const { data: stats, loading, refreshing, error } = useBackgroundFetch<Stats>(
+    'dashboard',
+    () => investmentsAPI.dashboard().then(r => r.data)
+  );
+
   useEffect(() => {
-    investmentsAPI.dashboard()
-      .then(res => setStats(res.data))
-      .catch(() => toast.error('Failed to load dashboard'))
-      .finally(() => setLoading(false));
-  }, []);
+    if (error) toast.error('Failed to load dashboard');
+  }, [error]);
 
   if (loading) {
     return (
@@ -162,7 +163,10 @@ export default function Dashboard() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+            {refreshing && <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" title="Updating..." />}
+          </div>
           <p className="text-gray-500 text-sm mt-0.5">Welcome back, {user?.fullName}</p>
         </div>
         <div className="flex gap-3">
@@ -221,10 +225,7 @@ export default function Dashboard() {
               View all <ArrowRight size={14} />
             </Link>
           </div>
-          <InvestmentTable
-            rows={stats!.urgentInvestments}
-            emptyMsg="No urgent investments"
-          />
+          <InvestmentTable rows={stats!.urgentInvestments} emptyMsg="No urgent investments" />
         </div>
       )}
 
@@ -258,10 +259,7 @@ export default function Dashboard() {
             View all <ArrowRight size={14} />
           </Link>
         </div>
-        <InvestmentTable
-          rows={stats?.recentInvestments ?? []}
-          emptyMsg="No investments yet"
-        />
+        <InvestmentTable rows={stats?.recentInvestments ?? []} emptyMsg="No investments yet" />
       </div>
 
       {/* Recent Activity — admin and super admin only */}

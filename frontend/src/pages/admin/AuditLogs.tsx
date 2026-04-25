@@ -1,8 +1,9 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ClipboardList, Download, ChevronLeft, ChevronRight, Filter, Search } from 'lucide-react';
 import { auditLogsAPI } from '../../api/client';
 import { formatDateTime, downloadBlob } from '../../utils/formatters';
+import { useBackgroundFetch } from '../../hooks/useBackgroundFetch';
 import toast from 'react-hot-toast';
 
 const ACTION_TYPES = [
@@ -29,9 +30,6 @@ const actionColors: Record<string, string> = {
 };
 
 export default function AuditLogs() {
-  const [logs, setLogs] = useState<any[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [expandedLog, setExpandedLog] = useState<string | null>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -42,25 +40,28 @@ export default function AuditLogs() {
   const search = searchParams.get('search') || '';
   const limit = 50;
 
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
-    try {
+  const cacheKey = `auditlogs:${page}:${actionType}:${startDate}:${endDate}:${search}`;
+
+  const { data, loading, refreshing, error } = useBackgroundFetch<{ logs: any[]; total: number }>(
+    cacheKey,
+    async () => {
       const params: Record<string, string> = { page: String(page), limit: String(limit) };
       if (actionType) params.action_type = actionType;
       if (startDate) params.start_date = startDate;
       if (endDate) params.end_date = endDate;
       if (search) params.search = search;
       const res = await auditLogsAPI.list(params);
-      setLogs(res.data.logs);
-      setTotal(res.data.total);
-    } catch {
-      toast.error('Failed to load audit logs');
-    } finally {
-      setLoading(false);
+      return res.data;
     }
-  }, [page, actionType, startDate, endDate, search]);
+  );
 
-  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+  useEffect(() => {
+    if (error) toast.error('Failed to load audit logs');
+  }, [error]);
+
+  const logs = data?.logs ?? [];
+  const total = data?.total ?? 0;
+  const totalPages = Math.ceil(total / limit);
 
   const updateParam = (key: string, value: string) => {
     const p = new URLSearchParams(searchParams);
@@ -81,15 +82,16 @@ export default function AuditLogs() {
     } catch { toast.error('Export failed'); }
   };
 
-  const totalPages = Math.ceil(total / limit);
-
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <ClipboardList size={24} className="text-blue-600" /> Audit Logs
-          </h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <ClipboardList size={24} className="text-blue-600" /> Audit Logs
+            </h1>
+            {refreshing && <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" title="Updating..." />}
+          </div>
           <p className="text-gray-500 text-sm">{total} total events</p>
         </div>
         <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
@@ -115,8 +117,8 @@ export default function AuditLogs() {
             <option value="">All Actions</option>
             {ACTION_TYPES.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
           </select>
-          <input type="date" className="input w-auto" value={startDate} onChange={e => updateParam('start_date', e.target.value)} placeholder="From" />
-          <input type="date" className="input w-auto" value={endDate} onChange={e => updateParam('end_date', e.target.value)} placeholder="To" />
+          <input type="date" className="input w-auto" value={startDate} onChange={e => updateParam('start_date', e.target.value)} />
+          <input type="date" className="input w-auto" value={endDate} onChange={e => updateParam('end_date', e.target.value)} />
           {(search || actionType || startDate || endDate) && (
             <button onClick={() => setSearchParams({})} className="text-sm text-gray-500 hover:text-gray-700">Clear</button>
           )}
@@ -144,7 +146,7 @@ export default function AuditLogs() {
             ) : logs.map(log => (
               <React.Fragment key={log.id}>
                 <tr
-                  className="hover:bg-gray-50 cursor-pointer transition-colors"
+                  className={`hover:bg-gray-50 cursor-pointer transition-colors ${refreshing ? 'opacity-75' : ''}`}
                   onClick={() => setExpandedLog(expandedLog === log.id ? null : log.id)}
                 >
                   <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">{formatDateTime(log.createdAt)}</td>
