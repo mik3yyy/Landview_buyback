@@ -2,7 +2,8 @@
 
 ## Overview
 - **Frontend** → Vercel (free)
-- **Backend + Database** → Railway (~$5/month)
+- **Backend** → Render (free tier with cold starts, or $7/mo always-on)
+- **Database** → Neon (free serverless Postgres)
 
 ---
 
@@ -14,7 +15,7 @@ Run this command twice in your terminal — once for JWT_SECRET, once for JWT_RE
 node -e "console.log(require('crypto').randomBytes(64).toString('base64'))"
 ```
 
-Save both outputs — you'll paste them into Railway in Step 3.
+Save both outputs — you'll paste them into Render in Step 4.
 
 ---
 
@@ -29,10 +30,7 @@ Save both outputs — you'll paste them into Railway in Step 3.
 2. In your terminal:
 
 ```bash
-cd /Users/michael/Downloads/Landview_buyback
-
 git remote set-url origin https://github.com/mik3yyy/landview-buyback.git
-
 git add .
 git commit -m "production ready"
 git push -u origin main
@@ -40,39 +38,60 @@ git push -u origin main
 
 ---
 
-## STEP 3 — Deploy Backend on Railway
+## STEP 3 — Set Up Database on Neon (free)
 
-1. Go to https://railway.app and sign in with GitHub
+1. Go to https://neon.tech and sign up / sign in with GitHub
 
-2. Click **New Project** → **Deploy from GitHub repo** → select `landview-buyback`
-   - When asked for Root Directory, type: `backend`
+2. Click **New Project**
+   - Name: `landview-buyback`
+   - Region: choose the one closest to you
+   - Click **Create Project**
 
-3. After it appears, click **Add a Service** → **Database** → **PostgreSQL**
-   - Wait for it to provision
-   - Click the PostgreSQL service → **Variables** tab → copy the `DATABASE_URL` value
+3. On the project dashboard, find **Connection Details**
+   - Select **Prisma** from the "Connection string" dropdown
+   - Copy the connection string — it looks like:
+     `postgresql://user:password@ep-xxx.us-east-1.aws.neon.tech/neondb?sslmode=require`
+   - Save this as your `DATABASE_URL`
 
-4. Click back on your backend service → **Variables** tab → add these one by one:
+---
+
+## STEP 4 — Deploy Backend on Render
+
+1. Go to https://render.com and sign in with GitHub
+
+2. Click **New** → **Web Service**
+   - Connect your `landview-buyback` GitHub repo
+   - Fill in:
+
+   | Field            | Value                  |
+   |------------------|------------------------|
+   | Root Directory   | `backend`              |
+   | Environment      | Node                   |
+   | Build Command    | `npm install && npm run build` |
+   | Start Command    | `npm start`            |
+
+3. Scroll to **Environment Variables** and add these one by one:
 
    | Variable              | Value                                              |
    |-----------------------|----------------------------------------------------|
-   | DATABASE_URL          | (paste from PostgreSQL service above)              |
-   | JWT_SECRET            | (first output from Step 1)                        |
-   | JWT_REFRESH_SECRET    | (second output from Step 1)                       |
+   | DATABASE_URL          | (your Neon connection string from Step 3)          |
+   | JWT_SECRET            | (first output from Step 1)                         |
+   | JWT_REFRESH_SECRET    | (second output from Step 1)                        |
    | SENDGRID_API_KEY      | (your SendGrid API key — check backend/.env locally) |
-   | FROM_EMAIL            | mike.senior.app.dev@gmail.com                     |
+   | FROM_EMAIL            | mike.senior.app.dev@gmail.com                      |
    | DEEPSEEK_API_KEY      | (your DeepSeek API key — check backend/.env locally) |
    | NODE_ENV              | production                                         |
-   | FRONTEND_URL          | (fill in after Vercel deploy — Step 5 below)      |
+   | FRONTEND_URL          | (fill in after Vercel deploy — Step 6 below)       |
 
-5. Click **Deploy** (or it may auto-deploy)
-   - Wait for the build to finish (2–3 minutes)
-   - You'll see logs showing "Server running on port..."
+4. Click **Create Web Service**
+   - Build takes 2–3 minutes
+   - Logs will show "Server running on port..."
 
-6. Copy your Railway backend URL — it looks like:
-   `https://landview-buyback-production.up.railway.app`
+5. Copy your Render backend URL — it looks like:
+   `https://landview-buyback.onrender.com`
 
-7. **Run the database seed** (creates the 3 user accounts):
-   - In Railway, click your backend service → **Shell** tab
+6. **Run the database seed** (creates the 3 default user accounts):
+   - In Render, click your service → **Shell** tab
    - Run:
    ```bash
    npm run prisma:seed
@@ -80,7 +99,7 @@ git push -u origin main
 
 ---
 
-## STEP 4 — Verify SendGrid Sender Email
+## STEP 5 — Verify SendGrid Sender Email
 
 Your FROM_EMAIL must be verified or emails will silently fail.
 
@@ -92,7 +111,7 @@ Your FROM_EMAIL must be verified or emails will silently fail.
 
 ---
 
-## STEP 5 — Deploy Frontend on Vercel
+## STEP 6 — Deploy Frontend on Vercel
 
 1. Go to https://vercel.com and sign in with GitHub
 
@@ -102,9 +121,9 @@ Your FROM_EMAIL must be verified or emails will silently fail.
 
 3. Before clicking Deploy, expand **Environment Variables** and add:
 
-   | Variable       | Value                                                    |
-   |----------------|----------------------------------------------------------|
-   | VITE_API_URL   | (your Railway backend URL from Step 3, e.g. https://landview-buyback-production.up.railway.app) |
+   | Variable       | Value                                                          |
+   |----------------|----------------------------------------------------------------|
+   | VITE_API_URL   | (your Render backend URL from Step 4, e.g. https://landview-buyback.onrender.com) |
 
 4. Click **Deploy**
    - Wait ~1 minute
@@ -112,18 +131,18 @@ Your FROM_EMAIL must be verified or emails will silently fail.
 
 ---
 
-## STEP 6 — Connect Frontend URL Back to Backend
+## STEP 7 — Connect Frontend URL Back to Backend
 
-1. Go back to Railway → your backend service → **Variables**
+1. Go to Render → your backend service → **Environment**
 2. Update `FRONTEND_URL` to your Vercel URL:
    ```
    FRONTEND_URL = https://landview-buyback.vercel.app
    ```
-3. Railway will automatically redeploy with the new value
+3. Render will automatically redeploy with the new value
 
 ---
 
-## STEP 7 — Test Everything
+## STEP 8 — Test Everything
 
 Open your Vercel URL and log in with:
 
@@ -143,28 +162,31 @@ Test checklist:
 
 ---
 
-## STEP 8 — Custom Domain (Optional)
+## STEP 9 — Custom Domain (Optional)
 
 If you have a domain (e.g. `app.landviewproperties.com`):
 
 1. In Vercel → your project → **Settings** → **Domains**
 2. Add your domain and follow the DNS instructions Vercel gives you
-3. Update `FRONTEND_URL` in Railway to match the custom domain
+3. Update `FRONTEND_URL` in Render to match the custom domain
 
 ---
 
 ## Ongoing
 
-- **Redeploy**: Just `git push` — Railway and Vercel both auto-deploy on push to `main`
-- **View logs**: Railway → your service → **Logs** tab
-- **Database GUI**: Run `npm run prisma:studio` locally (still connects to production DB if you set DATABASE_URL locally)
+- **Redeploy**: Just `git push` — Render and Vercel both auto-deploy on push to `main`
+- **View logs**: Render → your service → **Logs** tab
+- **Database GUI**: Run `npm run prisma:studio` locally (set DATABASE_URL in backend/.env to your Neon connection string)
 - **Add a new user**: Log in as Super Admin → Administration → User Management
+
+> **Note on Render free tier**: The free tier spins down after 15 minutes of inactivity — the first request after idle takes ~30 seconds to wake. Upgrade to the $7/mo Starter plan for always-on.
 
 ---
 
 ## Credentials Reference (keep private)
 
-- Railway dashboard: https://railway.app/dashboard
+- Render dashboard: https://dashboard.render.com
+- Neon dashboard: https://console.neon.tech
 - Vercel dashboard: https://vercel.com/dashboard
 - SendGrid dashboard: https://app.sendgrid.com
 - GitHub repo: https://github.com/mik3yyy/landview-buyback
