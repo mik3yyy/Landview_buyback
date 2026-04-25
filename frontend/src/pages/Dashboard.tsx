@@ -1,9 +1,9 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   TrendingUp, FileText, CheckCircle, Clock,
   ArrowRight, PlusCircle, Upload, Flame, CalendarCheck, List,
-  Bell, CalendarRange,
+  Bell, CalendarRange, ChevronDown, ChevronRight as ChevronRightIcon,
 } from 'lucide-react';
 import { investmentsAPI } from '../api/client';
 import { formatCurrency, formatDate } from '../utils/formatters';
@@ -150,6 +150,56 @@ function InvestmentTable({ rows, emptyMsg, showRealtor }: {
   );
 }
 
+function CollapsibleSection({
+  icon, title, subtitle, count, borderColor, badgeColor, defaultOpen = false, children, viewAllTo,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  subtitle?: string;
+  count: number;
+  borderColor: string;
+  badgeColor: string;
+  defaultOpen?: boolean;
+  children: React.ReactNode;
+  viewAllTo?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <div className={`card border-l-4 ${borderColor}`}>
+      <button
+        className="w-full flex items-center justify-between gap-2 text-left"
+        onClick={() => setOpen(o => !o)}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          {icon}
+          <div className="min-w-0">
+            <span className="text-base sm:text-lg font-semibold text-gray-900">{title}</span>
+            {subtitle && <p className="text-xs text-gray-400 mt-0.5">{subtitle}</p>}
+          </div>
+          {count > 0 && (
+            <span className={`text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${badgeColor}`}>
+              {count}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-3 flex-shrink-0">
+          {viewAllTo && open && (
+            <Link
+              to={viewAllTo}
+              onClick={e => e.stopPropagation()}
+              className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1"
+            >
+              View all <ArrowRight size={14} />
+            </Link>
+          )}
+          {open ? <ChevronDown size={18} className="text-gray-400" /> : <ChevronRightIcon size={18} className="text-gray-400" />}
+        </div>
+      </button>
+      {open && <div className="mt-4">{children}</div>}
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
 
@@ -226,7 +276,7 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Urgent */}
+      {/* Urgent — always expanded, no collapse (critical) */}
       {(stats?.urgentInvestments?.length ?? 0) > 0 && (
         <div className="card border-l-4 border-red-500">
           <div className="flex items-center justify-between mb-4">
@@ -245,84 +295,63 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* Today */}
+      <CollapsibleSection
+        icon={<CalendarCheck size={18} className="text-indigo-500" />}
+        title="Investments Today"
+        count={stats?.investmentsToday?.length ?? 0}
+        borderColor="border-indigo-400"
+        badgeColor="bg-indigo-100 text-indigo-700"
+        defaultOpen
+        viewAllTo="/investments"
+      >
+        <InvestmentTable rows={stats?.investmentsToday ?? []} emptyMsg="No investments created or maturing today" />
+      </CollapsibleSection>
+
       {/* Maturing in 7 Days */}
-      <div className="card border-l-4 border-orange-400">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Bell size={18} className="text-orange-500" />
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Maturing in 7 Days</h2>
-            {(stats?.maturingIn7Days?.length ?? 0) > 0 && (
-              <span className="bg-orange-100 text-orange-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                {stats!.maturingIn7Days.length}
-              </span>
-            )}
-          </div>
-          <Link to="/investments" className="text-orange-600 hover:text-orange-700 text-sm font-medium flex items-center gap-1 flex-shrink-0">
-            View all <ArrowRight size={14} />
-          </Link>
-        </div>
+      <CollapsibleSection
+        icon={<Bell size={18} className="text-orange-500" />}
+        title="Maturing in 7 Days"
+        count={stats?.maturingIn7Days?.length ?? 0}
+        borderColor="border-orange-400"
+        badgeColor="bg-orange-100 text-orange-700"
+        viewAllTo="/investments"
+      >
         <InvestmentTable
           rows={stats?.maturingIn7Days ?? []}
           emptyMsg="No investments maturing in the next 7 days"
           showRealtor
         />
-      </div>
+      </CollapsibleSection>
 
       {/* Maturing Next Month */}
-      <div className="card border-l-4 border-blue-400">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <CalendarRange size={18} className="text-blue-500" />
-            <div>
-              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Maturing in {nextMonthName}</h2>
-              <p className="text-xs text-gray-400 mt-0.5">Check if clients wish to extend</p>
-            </div>
-            {(stats?.maturingNextMonth?.length ?? 0) > 0 && (
-              <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                {stats!.maturingNextMonth.length}
-              </span>
-            )}
-          </div>
-          <Link to="/investments" className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1 flex-shrink-0">
-            View all <ArrowRight size={14} />
-          </Link>
-        </div>
+      <CollapsibleSection
+        icon={<CalendarRange size={18} className="text-blue-500" />}
+        title={`Maturing in ${nextMonthName}`}
+        subtitle="Check if clients wish to extend"
+        count={stats?.maturingNextMonth?.length ?? 0}
+        borderColor="border-blue-400"
+        badgeColor="bg-blue-100 text-blue-700"
+        viewAllTo="/investments"
+      >
         <InvestmentTable
           rows={stats?.maturingNextMonth ?? []}
           emptyMsg={`No investments maturing in ${nextMonthName}`}
           showRealtor
         />
-      </div>
-
-      {/* Investments Today */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <CalendarCheck size={18} className="text-indigo-500" />
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Investments Today</h2>
-            {(stats?.investmentsToday?.length ?? 0) > 0 && (
-              <span className="bg-indigo-100 text-indigo-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                {stats!.investmentsToday.length}
-              </span>
-            )}
-          </div>
-        </div>
-        <InvestmentTable rows={stats?.investmentsToday ?? []} emptyMsg="No investments created or maturing today" />
-      </div>
+      </CollapsibleSection>
 
       {/* Recent Investments */}
-      <div className="card">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <List size={18} className="text-gray-500" />
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Recent Investments</h2>
-          </div>
-          <Link to="/investments" className="text-blue-600 hover:text-blue-700 text-sm font-medium flex items-center gap-1">
-            View all <ArrowRight size={14} />
-          </Link>
-        </div>
+      <CollapsibleSection
+        icon={<List size={18} className="text-gray-500" />}
+        title="Recent Investments"
+        count={stats?.recentInvestments?.length ?? 0}
+        borderColor="border-gray-200"
+        badgeColor="bg-gray-100 text-gray-600"
+        viewAllTo="/investments"
+      >
         <InvestmentTable rows={stats?.recentInvestments ?? []} emptyMsg="No investments yet" />
-      </div>
+      </CollapsibleSection>
     </div>
   );
 }
