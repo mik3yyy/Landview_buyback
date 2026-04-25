@@ -478,6 +478,115 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
   });
 }
 
+export async function bulkCreateInvestments(req: AuthRequest, res: Response) {
+  const { investments } = req.body;
+  if (!Array.isArray(investments) || investments.length === 0) {
+    return res.status(400).json({ error: 'No investments provided' });
+  }
+
+  const created: any[] = [];
+  const errors: { row: number; clientName: string; message: string }[] = [];
+
+  for (let i = 0; i < investments.length; i++) {
+    const row = investments[i];
+    try {
+      const txDate = new Date(row.transactionDate);
+      if (isNaN(txDate.getTime())) throw new Error('Invalid transaction date');
+      const principalNum = parseFloat(row.principal);
+      if (isNaN(principalNum) || principalNum <= 0) throw new Error('Invalid principal');
+      const interestRateNum = parseFloat(row.interestRate);
+      if (isNaN(interestRateNum) || interestRateNum <= 0) throw new Error('Invalid interest rate');
+      const upfrontNum = row.upfrontPayment ? parseFloat(row.upfrontPayment) : 0;
+
+      const maturityDate = calculateMaturityDate(txDate, row.duration);
+      const roiAmount = calculateROI(principalNum, interestRateNum);
+      const maturityAmount = calculateMaturityAmount(principalNum, roiAmount, upfrontNum);
+
+      const investment = await prisma.investment.create({
+        data: {
+          transactionDate: txDate,
+          clientName: row.clientName,
+          plotNumber: String(row.plotNumber),
+          duration: row.duration,
+          maturityDate,
+          principal: principalNum,
+          interestRate: interestRateNum,
+          roiAmount,
+          upfrontPayment: upfrontNum > 0 ? upfrontNum : null,
+          maturityAmount,
+          clientEmail: row.clientEmail || null,
+          realtorName: row.realtorName,
+          realtorEmail: row.realtorEmail,
+          createdBy: req.user!.id,
+        },
+      });
+      created.push(investment);
+    } catch (err: any) {
+      errors.push({ row: i + 1, clientName: row.clientName || `Row ${i + 1}`, message: err.message || 'Unknown error' });
+    }
+  }
+
+  if (created.length > 0) {
+    await createAuditLog({
+      userId: req.user!.id,
+      actionType: 'CREATE_INVESTMENT',
+      entityType: 'investment',
+      entityId: 'bulk',
+      newValues: { bulkImport: true, count: created.length },
+      description: `Bulk imported ${created.length} investment(s) from Excel`,
+      req,
+    });
+  }
+
+  return res.status(201).json({ created: created.length, errors });
+}
+
+export async function findDuplicates(req: AuthRequest, res: Response) {
+  const investments = await prisma.investment.findMany({
+    select: {
+      id: true, clientName: true, plotNumber: true, clientEmail: true,
+      principal: true, transactionDate: true, maturityDate: true,
+      status: true, createdAt: true, maturityAmount: true,
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+
+  type Inv = typeof investments[0];
+  const groups: { reason: string; investments: Inv[] }[] = [];
+  const usedIds = new Set<string>();
+
+  // Group by normalized clientName + plotNumber
+  const byNamePlot = new Map<string, Inv[]>();
+  for (const inv of investments) {
+    const key = `${inv.clientName.toLowerCase().trim()}::${inv.plotNumber.toLowerCase().trim()}`;
+    if (!byNamePlot.has(key)) byNamePlot.set(key, []);
+    byNamePlot.get(key)!.push(inv);
+  }
+  for (const [, invs] of byNamePlot) {
+    if (invs.length > 1) {
+      groups.push({ reason: 'Same client name + plot number', investments: invs });
+      invs.forEach(i => usedIds.add(i.id));
+    }
+  }
+
+  // Group by clientEmail (non-null)
+  const byEmail = new Map<string, Inv[]>();
+  for (const inv of investments) {
+    if (!inv.clientEmail) continue;
+    const email = inv.clientEmail.toLowerCase().trim();
+    if (!byEmail.has(email)) byEmail.set(email, []);
+    byEmail.get(email)!.push(inv);
+  }
+  for (const [email, invs] of byEmail) {
+    if (invs.length > 1 && !invs.every(i => usedIds.has(i.id))) {
+      groups.push({ reason: `Same client email (${email})`, investments: invs });
+      invs.forEach(i => usedIds.add(i.id));
+    }
+  }
+
+  return res.json({ groups, totalInvestments: investments.length, duplicatesFound: usedIds.size });
+}
+
 export async function exportInvestments(req: AuthRequest, res: Response) {
   const { status } = req.query as Record<string, string>;
   const where: any = {};

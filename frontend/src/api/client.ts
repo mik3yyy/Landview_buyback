@@ -79,3 +79,9 @@ export const settingsAPI = {
   get: () => api.get('/settings'),
   update: (settings: Record<string, string>) => api.put('/settings', { settings }),
 };
+
+// Bulk / duplicates
+export const bulkAPI = {
+  create: (investments: any[]) => api.post('/investments/bulk', { investments }),
+  duplicates: () => api.get('/investments/duplicates'),
+};

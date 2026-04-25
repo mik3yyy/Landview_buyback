@@ -10,6 +10,7 @@ import InvestmentDetail from './pages/InvestmentDetail';
 import NewInvestment from './pages/NewInvestment';
 import EditInvestment from './pages/EditInvestment';
 import AIUpload from './pages/AIUpload';
+import BulkUpload from './pages/BulkUpload';
 import UserManagement from './pages/admin/UserManagement';
 import AuditLogs from './pages/admin/AuditLogs';
 import SystemSettings from './pages/admin/SystemSettings';
@@ -45,6 +46,7 @@ function AppRoutes() {
           <ProtectedRoute adminOnly><EditInvestment /></ProtectedRoute>
         } />
         <Route path="/ai-upload" element={<AIUpload />} />
+        <Route path="/bulk-upload" element={<BulkUpload />} />
 
         {/* Admin routes */}
         <Route path="/admin/users" element={

@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, PlusCircle, Upload,
-  Users, ClipboardList, Settings, LogOut, Building2,
+  Users, ClipboardList, Settings, LogOut, Building2, FileSpreadsheet,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -19,6 +19,7 @@ const navItems: NavItem[] = [
   { to: '/investments', icon: <FileText size={20} />, label: 'Investments' },
   { to: '/investments/new', icon: <PlusCircle size={20} />, label: 'New Investment' },
   { to: '/ai-upload', icon: <Upload size={20} />, label: 'AI Upload' },
+  { to: '/bulk-upload', icon: <FileSpreadsheet size={20} />, label: 'Excel Import' },
 ];
 
 const adminNavItems: NavItem[] = [

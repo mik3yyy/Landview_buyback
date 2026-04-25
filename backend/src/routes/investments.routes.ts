@@ -3,6 +3,7 @@ import {
   listInvestments, getInvestment, createInvestment, updateInvestment,
   extendInvestment, markPaymentInitiated, markPaymentCompleted,
   deleteInvestment, getDashboardStats, exportInvestments,
+  bulkCreateInvestments, findDuplicates,
 } from '../controllers/investments.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { isAdminOrAbove, isAnyRole } from '../middleware/rbac.middleware';
@@ -13,6 +14,8 @@ router.use(authenticate);
 
 router.get('/dashboard', isAnyRole, getDashboardStats);
 router.get('/export', isAdminOrAbove, exportInvestments);
+router.get('/duplicates', isAdminOrAbove, findDuplicates);
+router.post('/bulk', isAnyRole, bulkCreateInvestments);
 router.get('/', isAnyRole, listInvestments);
 router.get('/:id', isAnyRole, getInvestment);
 router.post('/', isAnyRole, createInvestment);

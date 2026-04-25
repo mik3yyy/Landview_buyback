@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, Filter, Download, Eye, Edit, Trash2, ArrowUpDown, ChevronLeft, ChevronRight } from 'lucide-react';
-import { investmentsAPI } from '../api/client';
+import { Search, Filter, Download, Eye, Edit, Trash2, ArrowUpDown, ChevronLeft, ChevronRight, Copy, X } from 'lucide-react';
+import { investmentsAPI, bulkAPI } from '../api/client';
 import { formatCurrency, formatDate, getDaysLabel, downloadBlob } from '../utils/formatters';
 import StatusBadge from '../components/ui/StatusBadge';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,6 +11,8 @@ import toast from 'react-hot-toast';
 export default function Investments() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
+  const [duplicates, setDuplicates] = useState<any[] | null>(null);
+  const [loadingDuplicates, setLoadingDuplicates] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const { isAdminOrAbove } = useAuth();
 
@@ -80,6 +82,19 @@ export default function Investments() {
     }
   };
 
+  const handleFindDuplicates = async () => {
+    setLoadingDuplicates(true);
+    try {
+      const res = await bulkAPI.duplicates();
+      setDuplicates(res.data.groups);
+      if (res.data.groups.length === 0) toast.success('No duplicates found');
+    } catch {
+      toast.error('Failed to check duplicates');
+    } finally {
+      setLoadingDuplicates(false);
+    }
+  };
+
   const handleExport = async () => {
     try {
       const params: Record<string, string> = {};
@@ -103,9 +118,18 @@ export default function Investments() {
         </div>
         <div className="flex gap-3">
           {isAdminOrAbove && (
-            <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
-              <Download size={16} /> Export CSV
-            </button>
+            <>
+              <button
+                onClick={handleFindDuplicates}
+                disabled={loadingDuplicates}
+                className="btn-secondary flex items-center gap-2"
+              >
+                <Copy size={16} /> {loadingDuplicates ? 'Checking...' : 'Find Duplicates'}
+              </button>
+              <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
+                <Download size={16} /> Export CSV
+              </button>
+            </>
           )}
           <Link to="/investments/new" className="btn-primary flex items-center gap-2">
             + New Investment
@@ -248,6 +272,82 @@ export default function Investments() {
           </div>
         )}
       </div>
+
+      {/* Duplicates Modal */}
+      {duplicates !== null && (
+        <div className="fixed inset-0 bg-black/40 flex items-start justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl my-8">
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                  <Copy size={20} className="text-orange-500" /> Duplicate Investment Check
+                </h2>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  {duplicates.length === 0
+                    ? 'No potential duplicates found.'
+                    : `${duplicates.length} duplicate group${duplicates.length !== 1 ? 's' : ''} detected — review and delete as needed.`}
+                </p>
+              </div>
+              <button onClick={() => setDuplicates(null)} className="p-2 hover:bg-gray-100 rounded-lg">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
+              {duplicates.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <Copy size={28} className="text-green-600" />
+                  </div>
+                  <p className="text-gray-600 font-medium">All clear — no duplicates detected</p>
+                </div>
+              ) : duplicates.map((group: any, gi: number) => (
+                <div key={gi} className="border border-orange-200 rounded-lg overflow-hidden">
+                  <div className="bg-orange-50 px-4 py-2.5 flex items-center gap-2">
+                    <span className="bg-orange-200 text-orange-900 text-xs font-bold px-2 py-0.5 rounded-full">
+                      {group.investments.length} entries
+                    </span>
+                    <span className="text-sm font-medium text-orange-900">{group.reason}</span>
+                  </div>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 border-b">
+                        <tr>
+                          {['Client Name', 'Plot', 'Principal', 'Transaction Date', 'Maturity Date', 'Status', ''].map(h => (
+                            <th key={h} className="text-left px-3 py-2 font-semibold text-gray-600">{h}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {group.investments.map((inv: any) => (
+                          <tr key={inv.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 font-medium text-gray-900">{inv.clientName}</td>
+                            <td className="px-3 py-2 font-mono">{inv.plotNumber}</td>
+                            <td className="px-3 py-2">{formatCurrency(Number(inv.principal))}</td>
+                            <td className="px-3 py-2">{formatDate(inv.transactionDate)}</td>
+                            <td className="px-3 py-2">{formatDate(inv.maturityDate)}</td>
+                            <td className="px-3 py-2">
+                              <StatusBadge status={inv.status} />
+                            </td>
+                            <td className="px-3 py-2">
+                              <Link
+                                to={`/investments/${inv.id}`}
+                                className="text-blue-600 hover:underline font-medium"
+                                onClick={() => setDuplicates(null)}
+                              >
+                                View →
+                              </Link>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation modal */}
       {confirmDelete && (
