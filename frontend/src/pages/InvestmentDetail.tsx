@@ -112,14 +112,14 @@ export default function InvestmentDetail() {
   return (
     <div className="space-y-6 max-w-5xl">
       {/* Header */}
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={() => navigate(-1)} className="btn-secondary p-2">
+      <div className="space-y-3">
+        <div className="flex items-start gap-3">
+          <button onClick={() => navigate(-1)} className="btn-secondary p-2 flex-shrink-0">
             <ArrowLeft size={18} />
           </button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900">{investment.clientName}</h1>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-lg sm:text-2xl font-bold text-gray-900 break-words">{investment.clientName}</h1>
               <StatusBadge status={investment.status} daysUntilMaturity={days} />
               {refreshing && <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" title="Updating..." />}
             </div>
@@ -127,42 +127,43 @@ export default function InvestmentDetail() {
           </div>
         </div>
 
-        <div className="flex gap-2 flex-wrap justify-end">
+        {/* Action buttons — wrap on mobile */}
+        <div className="flex gap-2 flex-wrap">
           {canInitiate && (
-            <button onClick={handleMarkPaymentInitiated} disabled={actionLoading} className="btn-primary flex items-center gap-2">
-              <CheckCircle size={16} /> Mark Payment Initiated
+            <button onClick={handleMarkPaymentInitiated} disabled={actionLoading} className="btn-primary flex items-center gap-2 text-sm">
+              <CheckCircle size={15} /> <span className="hidden sm:inline">Mark </span>Payment Initiated
             </button>
           )}
           {canComplete && (
-            <button onClick={() => setShowCompleteModal(true)} className="btn-success flex items-center gap-2">
-              <CheckCircle size={16} /> Complete Payment
+            <button onClick={() => setShowCompleteModal(true)} className="btn-success flex items-center gap-2 text-sm">
+              <CheckCircle size={15} /> Complete Payment
             </button>
           )}
           {investment.status !== 'completed' && (
-            <button onClick={() => setShowExtendModal(true)} className="btn-secondary flex items-center gap-2">
-              <RefreshCw size={16} /> Extend
+            <button onClick={() => setShowExtendModal(true)} className="btn-secondary flex items-center gap-2 text-sm">
+              <RefreshCw size={15} /> Extend
             </button>
           )}
           {isAdminOrAbove && investment.status !== 'completed' && (
-            <Link to={`/investments/${id}/edit`} className="btn-secondary flex items-center gap-2">
-              <Edit size={16} /> Edit
+            <Link to={`/investments/${id}/edit`} className="btn-secondary flex items-center gap-2 text-sm">
+              <Edit size={15} /> Edit
             </Link>
           )}
           {isSuperAdmin && (
-            <button onClick={() => setShowDeleteModal(true)} className="btn-danger flex items-center gap-2">
-              <Trash2 size={16} />
+            <button onClick={() => setShowDeleteModal(true)} className="btn-danger flex items-center gap-2 text-sm">
+              <Trash2 size={15} />
             </button>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
         {/* Main details */}
         <div className="lg:col-span-2 space-y-6">
           {/* Financial Summary */}
           <div className="card">
             <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><TrendingUp size={18} className="text-blue-600" /> Financial Details</h2>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-2 gap-3">
               {[
                 { label: 'Principal Amount', value: formatCurrency(Number(investment.principal)), highlight: false },
                 { label: 'Interest Rate', value: `${investment.interestRate}%`, highlight: false },

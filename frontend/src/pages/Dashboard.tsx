@@ -161,20 +161,20 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard</h1>
             {refreshing && <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" title="Updating..." />}
           </div>
           <p className="text-gray-500 text-sm mt-0.5">Welcome back, {user?.fullName}</p>
         </div>
-        <div className="flex gap-3">
-          <Link to="/ai-upload" className="btn-secondary flex items-center gap-2">
-            <Upload size={16} /> AI Upload
+        <div className="flex gap-2 flex-wrap">
+          <Link to="/ai-upload" className="btn-secondary flex items-center gap-2 text-sm">
+            <Upload size={15} /> AI Upload
           </Link>
-          <Link to="/investments/new" className="btn-primary flex items-center gap-2">
-            <PlusCircle size={16} /> New Investment
+          <Link to="/investments/new" className="btn-primary flex items-center gap-2 text-sm">
+            <PlusCircle size={15} /> New Investment
           </Link>
         </div>
       </div>

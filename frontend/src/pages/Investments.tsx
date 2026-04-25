@@ -108,31 +108,27 @@ export default function Investments() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold text-gray-900">Investments</h1>
+            <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Investments</h1>
             {refreshing && <div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" title="Updating..." />}
           </div>
           <p className="text-gray-500 text-sm">{total} total records</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-2 flex-wrap">
           {isAdminOrAbove && (
             <>
-              <button
-                onClick={handleFindDuplicates}
-                disabled={loadingDuplicates}
-                className="btn-secondary flex items-center gap-2"
-              >
-                <Copy size={16} /> {loadingDuplicates ? 'Checking...' : 'Find Duplicates'}
+              <button onClick={handleFindDuplicates} disabled={loadingDuplicates} className="btn-secondary flex items-center gap-2 text-sm">
+                <Copy size={15} /> {loadingDuplicates ? 'Checking...' : 'Duplicates'}
               </button>
-              <button onClick={handleExport} className="btn-secondary flex items-center gap-2">
-                <Download size={16} /> Export CSV
+              <button onClick={handleExport} className="btn-secondary flex items-center gap-2 text-sm">
+                <Download size={15} /> Export
               </button>
             </>
           )}
-          <Link to="/investments/new" className="btn-primary flex items-center gap-2">
-            + New Investment
+          <Link to="/investments/new" className="btn-primary flex items-center gap-2 text-sm">
+            + New
           </Link>
         </div>
       </div>
@@ -167,8 +163,55 @@ export default function Investments() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="card p-0 overflow-hidden">
+      {/* Mobile card list */}
+      {loading ? (
+        <div className="text-center py-12 text-gray-400 md:hidden">Loading...</div>
+      ) : investments.length === 0 ? (
+        <div className="text-center py-12 text-gray-400 md:hidden">No investments found</div>
+      ) : (
+        <div className="space-y-3 md:hidden">
+          {investments.map(inv => {
+            const days = inv.daysUntilMaturity;
+            const isOverdue = (inv.status === 'active' || inv.status === 'extended') && days < 0;
+            return (
+              <Link
+                key={inv.id}
+                to={`/investments/${inv.id}`}
+                className={`card block p-4 hover:shadow-md transition-shadow ${refreshing ? 'opacity-75' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div>
+                    <div className="font-semibold text-gray-900 text-sm">{inv.clientName}</div>
+                    <div className="text-xs text-gray-400 font-mono mt-0.5">Plot {inv.plotNumber}</div>
+                  </div>
+                  <StatusBadge status={inv.status} daysUntilMaturity={days} />
+                </div>
+                <div className="flex items-center justify-between text-sm">
+                  <div>
+                    <div className="text-gray-500 text-xs">Principal → Maturity</div>
+                    <div className="font-medium">
+                      {formatCurrency(Number(inv.principal))}
+                      <span className="text-gray-400 mx-1">→</span>
+                      <span className="text-blue-700 font-semibold">{formatCurrency(Number(inv.maturityAmount))}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-gray-500 text-xs">{formatDate(inv.maturityDate)}</div>
+                    {inv.status !== 'completed' && (
+                      <div className={`text-xs font-medium mt-0.5 ${isOverdue ? 'text-red-600' : days <= 7 ? 'text-orange-600' : 'text-gray-500'}`}>
+                        {getDaysLabel(days)}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </Link>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Desktop table */}
+      <div className="card p-0 overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
@@ -207,13 +250,11 @@ export default function Investments() {
                       <div className="font-medium text-gray-900">{inv.clientName}</div>
                       <div className="text-xs text-gray-400">{inv.clientEmail || '—'}</div>
                     </td>
-                    <td className="px-4 py-3 font-mono text-xs bg-gray-50 rounded">{inv.plotNumber}</td>
+                    <td className="px-4 py-3 font-mono text-xs">{inv.plotNumber}</td>
                     <td className="px-4 py-3 font-medium">{formatCurrency(Number(inv.principal))}</td>
                     <td className="px-4 py-3 font-semibold text-blue-700">{formatCurrency(Number(inv.maturityAmount))}</td>
                     <td className="px-4 py-3 text-gray-600">{formatDate(inv.maturityDate)}</td>
-                    <td className="px-4 py-3">
-                      <StatusBadge status={inv.status} daysUntilMaturity={days} />
-                    </td>
+                    <td className="px-4 py-3"><StatusBadge status={inv.status} daysUntilMaturity={days} /></td>
                     <td className="px-4 py-3">
                       {inv.status !== 'completed' ? (
                         <span className={`text-xs font-medium ${isOverdue ? 'text-red-600' : days <= 7 ? 'text-orange-600' : 'text-gray-500'}`}>
@@ -232,10 +273,7 @@ export default function Investments() {
                           </Link>
                         )}
                         {isAdminOrAbove && (
-                          <button
-                            onClick={() => setConfirmDelete({ id: inv.id, name: inv.clientName })}
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          >
+                          <button onClick={() => setConfirmDelete({ id: inv.id, name: inv.clientName })} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors">
                             <Trash2 size={16} />
                           </button>
                         )}
@@ -247,31 +285,23 @@ export default function Investments() {
             </tbody>
           </table>
         </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="px-4 py-3 border-t flex items-center justify-between text-sm text-gray-600">
-            <span>Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}</span>
-            <div className="flex gap-2">
-              <button
-                onClick={() => updateParam('page', String(page - 1))}
-                disabled={page <= 1}
-                className="btn-secondary px-2 py-1 disabled:opacity-40"
-              >
-                <ChevronLeft size={16} />
-              </button>
-              <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded font-medium">{page}</span>
-              <button
-                onClick={() => updateParam('page', String(page + 1))}
-                disabled={page >= totalPages}
-                className="btn-secondary px-2 py-1 disabled:opacity-40"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="px-4 py-3 border-t border-gray-100 bg-white rounded-xl flex items-center justify-between text-sm text-gray-600">
+          <span className="text-xs sm:text-sm">Showing {(page - 1) * limit + 1}–{Math.min(page * limit, total)} of {total}</span>
+          <div className="flex gap-2">
+            <button onClick={() => updateParam('page', String(page - 1))} disabled={page <= 1} className="btn-secondary px-2 py-1 disabled:opacity-40">
+              <ChevronLeft size={16} />
+            </button>
+            <span className="px-3 py-1 bg-blue-50 text-blue-700 rounded font-medium">{page}</span>
+            <button onClick={() => updateParam('page', String(page + 1))} disabled={page >= totalPages} className="btn-secondary px-2 py-1 disabled:opacity-40">
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Duplicates Modal */}
       {duplicates !== null && (
