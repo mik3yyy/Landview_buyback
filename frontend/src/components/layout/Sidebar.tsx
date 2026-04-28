@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, PlusCircle, Upload,
   Users, ClipboardList, Settings, LogOut, Building2,
-  FileSpreadsheet, X,
+  FileSpreadsheet, X, Inbox,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -20,6 +20,7 @@ const navItems = [
 ];
 
 const adminNavItems = [
+  { to: '/admin/applications', icon: <Inbox size={20} />, label: 'Applications', superAdminOnly: false },
   { to: '/admin/users', icon: <Users size={20} />, label: 'User Management', superAdminOnly: false },
   { to: '/admin/audit-logs', icon: <ClipboardList size={20} />, label: 'Audit Logs', superAdminOnly: true },
   { to: '/admin/settings', icon: <Settings size={20} />, label: 'System Settings', superAdminOnly: true },

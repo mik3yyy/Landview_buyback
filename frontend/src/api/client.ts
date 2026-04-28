@@ -85,3 +85,19 @@ export const bulkAPI = {
   create: (investments: any[]) => api.post('/investments/bulk', { investments }),
   duplicates: () => api.get('/investments/duplicates'),
 };
+
+// Applications (public + admin)
+const publicApi = axios.create({
+  baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api',
+  timeout: 30000,
+});
+
+export const applicationsAPI = {
+  submit: (data: any) => publicApi.post('/applications', data),
+  getStatus: (id: string) => publicApi.get(`/applications/${id}/status`),
+  resubmit: (id: string, data: any) => publicApi.put(`/applications/${id}/resubmit`, data),
+  list: (params?: Record<string, string>) => api.get('/applications', { params }),
+  get: (id: string) => api.get(`/applications/${id}`),
+  reject: (id: string, reason: string) => api.post(`/applications/${id}/reject`, { reason }),
+  approve: (id: string, data: any) => api.post(`/applications/${id}/approve`, data),
+};

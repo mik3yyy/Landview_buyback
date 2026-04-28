@@ -14,6 +14,10 @@ import BulkUpload from './pages/BulkUpload';
 import UserManagement from './pages/admin/UserManagement';
 import AuditLogs from './pages/admin/AuditLogs';
 import SystemSettings from './pages/admin/SystemSettings';
+import Apply from './pages/Apply';
+import ApplicationStatus from './pages/ApplicationStatus';
+import Applications from './pages/admin/Applications';
+import ApplicationDetail from './pages/admin/ApplicationDetail';
 
 function ProtectedRoute({ children, adminOnly = false, superAdminOnly = false }: {
   children: React.ReactNode;
@@ -34,6 +38,10 @@ function AppRoutes() {
 
   return (
     <Routes>
+      {/* Public routes — no auth required */}
+      <Route path="/apply" element={<Apply />} />
+      <Route path="/application-status/:id" element={<ApplicationStatus />} />
+
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
 
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
@@ -49,6 +57,12 @@ function AppRoutes() {
         <Route path="/bulk-upload" element={<BulkUpload />} />
 
         {/* Admin routes */}
+        <Route path="/admin/applications" element={
+          <ProtectedRoute adminOnly><Applications /></ProtectedRoute>
+        } />
+        <Route path="/admin/applications/:id" element={
+          <ProtectedRoute adminOnly><ApplicationDetail /></ProtectedRoute>
+        } />
         <Route path="/admin/users" element={
           <ProtectedRoute adminOnly><UserManagement /></ProtectedRoute>
         } />

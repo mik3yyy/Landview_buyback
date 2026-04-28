@@ -35,6 +35,16 @@ enum ActionType {
   DELETE_USER
   AI_UPLOAD
   EMAIL_SENT
+  APPLICATION_SUBMITTED
+  APPLICATION_APPROVED
+  APPLICATION_REJECTED
+}
+
+enum ApplicationStatus {
+  pending
+  approved
+  rejected
+  converted
 }
 
 model User {
@@ -53,6 +63,7 @@ model User {
   auditLogs         AuditLog[]
   paymentInitiated  Investment[] @relation("PaymentInitiatedBy")
   paymentCompleted  Investment[] @relation("PaymentCompletedBy")
+  reviewedApplications ClientApplication[] @relation("ApplicationReviewer")
 
   @@map("users")
 }
@@ -87,6 +98,7 @@ model Investment {
   paymentCompletedUser User?           @relation("PaymentCompletedBy", fields: [paymentCompletedBy], references: [id])
 
   extensions          InvestmentExtension[]
+  application         ClientApplication?
 
   @@map("investments")
 }
@@ -105,6 +117,83 @@ model InvestmentExtension {
   extendedBy      String
 
   @@map("investment_extensions")
+}
+
+model ClientApplication {
+  id                  String            @id @default(uuid())
+
+  // Personal
+  title               String?
+  surname             String
+  otherNames          String
+  dateOfBirth         String?
+  sex                 String?
+  maritalStatus       String?
+  nationality         String?
+  countryOfResidence  String?
+  phoneNumber         String
+  alternativePhone    String?
+  clientEmail         String?
+
+  // Address
+  correspondenceAddress String?
+  correspondenceCity  String?
+  correspondenceState String?
+  permanentAddress    String?
+  permanentCity       String?
+  permanentState      String?
+  country             String?
+
+  // Corporate
+  isCorporate         Boolean           @default(false)
+  corporateName       String?
+  corporateAddress    String?
+
+  // Next of Kin
+  nextOfKinName       String?
+  nextOfKinEmail      String?
+  nextOfKinPhone      String?
+
+  // Investment
+  duration            String
+  principal           Decimal           @db.Decimal(15, 2)
+  wantsUpfront        Boolean           @default(false)
+
+  // Payment
+  paymentMode         String?
+  accountName         String?
+  accountNumber       String?
+  bankName            String?
+
+  // Source of funds (JSON array stored as string)
+  sourceOfFunds       String?
+
+  // Realtor
+  realtorName         String?
+  realtorEmail        String?
+  realtorPhone        String?
+
+  // Agreement
+  agreedToTerms       Boolean           @default(false)
+
+  // Status workflow
+  status              ApplicationStatus @default(pending)
+  rejectionReason     String?
+  clientMessage       String?
+
+  // Review
+  reviewedBy          String?
+  reviewedAt          DateTime?
+  reviewer            User?             @relation("ApplicationReviewer", fields: [reviewedBy], references: [id])
+
+  // Linked investment (set when converted)
+  investmentId        String?           @unique
+  investment          Investment?       @relation(fields: [investmentId], references: [id])
+
+  submittedAt         DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@map("client_applications")
 }
 
 model AuditLog {
