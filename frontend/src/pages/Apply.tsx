@@ -1,8 +1,78 @@
 import React, { useState } from 'react';
 import { applicationsAPI } from '../api/client';
 import { formatCurrency } from '../utils/formatters';
-import { Building2, CheckCircle, Copy, Check } from 'lucide-react';
+import { Building2, CheckCircle, Copy, Check, ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+
+const FAQ_ITEMS = [
+  {
+    q: 'What will Landview Property give me as a guarantee for my subscription to the Buy Back Scheme?',
+    a: (
+      <ul className="space-y-2 text-sm text-gray-600">
+        <li className="flex items-start gap-2"><span className="text-blue-500 font-bold mt-0.5">✓</span><span><strong>Contract of Buyback Scheme</strong> — a signed agreement protecting your investment.</span></li>
+        <li className="flex items-start gap-2"><span className="text-blue-500 font-bold mt-0.5">✓</span><span><strong>Post-Dated Cheque</strong> — provided on request at the point of the transaction. Note: if the cheque is returned to the office after being issued, a penalty fee of <strong>₦20,000</strong> will be charged.</span></li>
+        <li className="flex items-start gap-2"><span className="text-blue-500 font-bold mt-0.5">✓</span><span><strong>Official Receipt</strong> — issued upon successful payment.</span></li>
+      </ul>
+    ),
+  },
+  {
+    q: 'Can I get an upfront payment?',
+    a: (
+      <p className="text-sm text-gray-600">
+        Yes. <strong>50% of your profit</strong> can be paid to you after <strong>6 weeks</strong> from the date of investment. The remaining 50% of profit, plus your principal, will be paid at maturity.
+        <br /><br />
+        <span className="text-xs text-gray-400">Example: ₦1,000,000 at 20% (6 months) = ₦200,000 profit. Upfront = ₦100,000 after 6 weeks. At maturity = ₦1,000,000 + ₦100,000 = ₦1,100,000.</span>
+      </p>
+    ),
+  },
+  {
+    q: 'Can I pay cash to your agent?',
+    a: (
+      <p className="text-sm text-gray-600">
+        <strong className="text-red-600">We strongly advise that ALL payments be made directly to Landview Property Investments Limited.</strong>
+        <br /><br />
+        Bank transfer: <strong>Access Bank — 1886130168</strong> (Landview Property Investments Limited)
+        <br /><br />
+        Alternatively, cheques should be issued in favour of <strong>Landview Property Investments Limited</strong>.
+      </p>
+    ),
+  },
+  {
+    q: 'Where is your office located?',
+    a: (
+      <p className="text-sm text-gray-600">
+        Our office is located at:<br />
+        <strong>Road 12, Block 10B, Plot 8, Lekki Scheme II,<br />
+        Off Ogombo Road, Abraham Adesanya,<br />
+        Ajah, Lagos.</strong>
+      </p>
+    ),
+  },
+  {
+    q: 'What is the minimum investment plan?',
+    a: (
+      <p className="text-sm text-gray-600">
+        The minimum investment package is <strong>₦1,000,000 (One Million Naira)</strong> and above.
+      </p>
+    ),
+  },
+];
+
+function FAQItem({ q, a }: { q: string; a: React.ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <button
+        className="w-full flex items-center justify-between gap-3 px-5 py-4 text-left hover:bg-gray-50 transition-colors"
+        onClick={() => setOpen(o => !o)}
+      >
+        <span className="text-sm font-medium text-gray-800">{q}</span>
+        {open ? <ChevronUp size={16} className="text-gray-400 flex-shrink-0" /> : <ChevronDown size={16} className="text-gray-400 flex-shrink-0" />}
+      </button>
+      {open && <div className="px-5 pb-4 border-t border-gray-100 pt-3">{a}</div>}
+    </div>
+  );
+}
 
 const DURATION_OPTIONS = [
   { value: '6 months', label: '6 Months', rate: 20 },
@@ -443,6 +513,22 @@ export default function Apply() {
               </button>
             )}
           </div>
+        </div>
+
+        {/* FAQ */}
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <HelpCircle size={18} className="text-blue-500" />
+            <h3 className="text-base font-semibold text-gray-800">Frequently Asked Questions</h3>
+          </div>
+          <div className="space-y-3">
+            {FAQ_ITEMS.map((item, i) => (
+              <FAQItem key={i} q={item.q} a={item.a} />
+            ))}
+          </div>
+          <p className="text-xs text-gray-400 text-center mt-6">
+            For enquiries, visit our office at Road 12, Block 10B, Plot 8, Lekki Scheme II, Ajah, Lagos.
+          </p>
         </div>
       </div>
     </div>
