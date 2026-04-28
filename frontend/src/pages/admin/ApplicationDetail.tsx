@@ -75,6 +75,10 @@ export default function ApplicationDetail() {
   useEffect(() => {
     if (!app) return;
     const rate = DURATION_RATES[app.duration] ?? 20;
+    const principalVal = Number(app.principal);
+    const roiVal = principalVal * (rate / 100);
+    // If client chose upfront, pre-fill as 50% of profit
+    const upfrontVal = app.wantsUpfront ? roiVal * 0.5 : 0;
     setApproveForm(f => ({
       ...f,
       clientName: `${app.title ? app.title + ' ' : ''}${app.surname} ${app.otherNames}`,
@@ -83,6 +87,7 @@ export default function ApplicationDetail() {
       duration: app.duration,
       principal: String(app.principal),
       interestRate: String(rate),
+      upfrontPayment: upfrontVal > 0 ? String(upfrontVal) : '',
     }));
   }, [app]);
 
@@ -90,7 +95,8 @@ export default function ApplicationDetail() {
   const rateNum = parseFloat(approveForm.interestRate) || 0;
   const roi = principalNum * (rateNum / 100);
   const upfront = parseFloat(approveForm.upfrontPayment) || 0;
-  const maturityAmount = principalNum + roi - upfront;
+  // Maturity = Principal + remaining profit (profit - upfront already paid)
+  const maturityAmount = principalNum + (roi - upfront);
 
   const handleReject = async () => {
     setActionLoading(true);
@@ -344,14 +350,33 @@ export default function ApplicationDetail() {
             </div>
           </div>
 
+          {app.wantsUpfront && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-700">
+              Client requested upfront payment — 50% of profit will be paid after 6 weeks.
+              Pre-filled below. Adjust if needed.
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Principal (₦)</label>
               <input type="number" className="input" value={approveForm.principal}
-                onChange={e => setApproveForm(f => ({ ...f, principal: e.target.value }))} />
+                onChange={e => {
+                  const p = parseFloat(e.target.value) || 0;
+                  const r = parseFloat(approveForm.interestRate) || 0;
+                  const roiCalc = p * (r / 100);
+                  setApproveForm(f => ({
+                    ...f,
+                    principal: e.target.value,
+                    upfrontPayment: app.wantsUpfront && roiCalc > 0 ? String(roiCalc * 0.5) : f.upfrontPayment,
+                  }));
+                }} />
             </div>
             <div>
-              <label className="label">Upfront Payment (₦) — optional</label>
+              <label className="label">
+                Upfront Payment (₦)
+                {app.wantsUpfront ? ' — 50% of profit' : ' — optional'}
+              </label>
               <input type="number" className="input" value={approveForm.upfrontPayment} placeholder="0"
                 onChange={e => setApproveForm(f => ({ ...f, upfrontPayment: e.target.value }))} />
             </div>
@@ -372,10 +397,36 @@ export default function ApplicationDetail() {
 
           {/* Calculated preview */}
           {principalNum > 0 && (
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm space-y-1">
-              <div className="flex justify-between"><span className="text-gray-600">ROI ({rateNum}%)</span><span className="font-medium text-green-700">{formatCurrency(roi)}</span></div>
-              {upfront > 0 && <div className="flex justify-between"><span className="text-gray-600">Upfront</span><span className="font-medium text-orange-600">- {formatCurrency(upfront)}</span></div>}
-              <div className="flex justify-between border-t pt-1 mt-1"><span className="font-semibold">Maturity Amount</span><span className="font-bold text-blue-700">{formatCurrency(maturityAmount)}</span></div>
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-sm space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Principal</span>
+                <span className="font-medium">{formatCurrency(principalNum)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Total Profit ({rateNum}%)</span>
+                <span className="font-medium text-green-700">+ {formatCurrency(roi)}</span>
+              </div>
+              {upfront > 0 && (
+                <>
+                  <div className="flex justify-between text-orange-600">
+                    <span>Upfront paid after 6 weeks</span>
+                    <span className="font-medium">- {formatCurrency(upfront)}</span>
+                  </div>
+                  <div className="flex justify-between text-gray-500 text-xs">
+                    <span>Remaining profit at maturity</span>
+                    <span>{formatCurrency(roi - upfront)}</span>
+                  </div>
+                </>
+              )}
+              <div className="flex justify-between border-t pt-1.5 mt-1">
+                <span className="font-semibold">Amount at Maturity</span>
+                <span className="font-bold text-blue-700">{formatCurrency(maturityAmount)}</span>
+              </div>
+              {upfront > 0 && (
+                <div className="text-xs text-gray-400 pt-0.5">
+                  Total payout = {formatCurrency(upfront)} (upfront) + {formatCurrency(maturityAmount)} (maturity) = {formatCurrency(upfront + maturityAmount)}
+                </div>
+              )}
             </div>
           )}
 
