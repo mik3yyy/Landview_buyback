@@ -175,6 +175,7 @@ export default function Apply() {
     }
     if (step === 4) {
       if (!form.principal || parseFloat(form.principal) <= 0) { toast.error('Enter a valid principal amount'); return false; }
+      if (parseFloat(form.principal) < 1000000) { toast.error('Minimum investment is ₦1,000,000'); return false; }
     }
     if (step === 6) {
       if (!form.agreedToTerms) { toast.error('You must agree to the terms'); return false; }
@@ -373,7 +374,10 @@ export default function Apply() {
               </Field>
 
               <Field label="Principal Amount (₦)" required>
-                <input type="number" {...inp('principal')} placeholder="e.g. 1000000" min="0" step="1000" />
+                <input type="number" {...inp('principal')} placeholder="Minimum ₦1,000,000" min="1000000" step="1000" />
+                {form.principal && parseFloat(form.principal) < 1000000 && parseFloat(form.principal) > 0 && (
+                  <p className="text-red-500 text-xs mt-1">Minimum investment is ₦1,000,000</p>
+                )}
               </Field>
 
               {principal > 0 && (
