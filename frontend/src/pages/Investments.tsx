@@ -17,39 +17,48 @@ export default function Investments() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { isAdminOrAbove } = useAuth();
 
-  const status       = searchParams.get('status') || '';
-  const search       = searchParams.get('search') || '';
-  const page         = parseInt(searchParams.get('page') || '1');
-  const sort         = searchParams.get('sort') || 'createdAt';
-  const order        = searchParams.get('order') || 'desc';
-  const startDate    = searchParams.get('startDate') || '';
-  const endDate      = searchParams.get('endDate') || '';
+  const status        = searchParams.get('status') || '';
+  const search        = searchParams.get('search') || '';
+  const page          = parseInt(searchParams.get('page') || '1');
+  const sort          = searchParams.get('sort') || 'createdAt';
+  const order         = searchParams.get('order') || 'desc';
+  const txnExact      = searchParams.get('txnExact') || '';
+  const startDate     = searchParams.get('startDate') || '';
+  const endDate       = searchParams.get('endDate') || '';
+  const maturityExact = searchParams.get('maturityExact') || '';
   const maturityStart = searchParams.get('maturityStart') || '';
-  const maturityEnd  = searchParams.get('maturityEnd') || '';
-  const clientEmail  = searchParams.get('clientEmail') || '';
-  const realtorEmail = searchParams.get('realtorEmail') || '';
-  const hasUpfront   = searchParams.get('hasUpfront') || '';
+  const maturityEnd   = searchParams.get('maturityEnd') || '';
+  const clientEmail   = searchParams.get('clientEmail') || '';
+  const realtorEmail  = searchParams.get('realtorEmail') || '';
+  const hasUpfront    = searchParams.get('hasUpfront') || '';
   const limit = 20;
 
-  const advancedFilterCount = [startDate, endDate, maturityStart, maturityEnd, clientEmail, realtorEmail, hasUpfront].filter(Boolean).length;
+  const advancedFilterCount = [txnExact, startDate, endDate, maturityExact, maturityStart, maturityEnd, clientEmail, realtorEmail, hasUpfront].filter(Boolean).length;
 
-  const cacheKey = `investments:${status}:${search}:${page}:${sort}:${order}:${startDate}:${endDate}:${maturityStart}:${maturityEnd}:${clientEmail}:${realtorEmail}:${hasUpfront}`;
+  const cacheKey = `investments:${status}:${search}:${page}:${sort}:${order}:${txnExact}:${startDate}:${endDate}:${maturityExact}:${maturityStart}:${maturityEnd}:${clientEmail}:${realtorEmail}:${hasUpfront}`;
 
   const { data, loading, refreshing, error, refresh } = useBackgroundFetch<{ investments: any[]; total: number }>(
     cacheKey,
     async () => {
       const params: Record<string, string> = { page: String(page), limit: String(limit) };
-      if (status)        params.status = status;
-      if (search)        params.search = search;
-      if (sort)          params.sort_by = sort;
-      if (order)         params.order = order;
-      if (startDate)     params.start_date = startDate;
-      if (endDate)       params.end_date = endDate;
-      if (maturityStart) params.maturity_start = maturityStart;
-      if (maturityEnd)   params.maturity_end = maturityEnd;
-      if (clientEmail)   params.client_email = clientEmail;
-      if (realtorEmail)  params.realtor_email = realtorEmail;
-      if (hasUpfront)    params.has_upfront_payment = hasUpfront;
+      if (status)         params.status = status;
+      if (search)         params.search = search;
+      if (sort)           params.sort_by = sort;
+      if (order)          params.order = order;
+      // Exact date sends the same value as both start and end
+      if (txnExact)       { params.start_date = txnExact; params.end_date = txnExact; }
+      else {
+        if (startDate)    params.start_date = startDate;
+        if (endDate)      params.end_date = endDate;
+      }
+      if (maturityExact)  { params.maturity_start = maturityExact; params.maturity_end = maturityExact; }
+      else {
+        if (maturityStart) params.maturity_start = maturityStart;
+        if (maturityEnd)   params.maturity_end = maturityEnd;
+      }
+      if (clientEmail)    params.client_email = clientEmail;
+      if (realtorEmail)   params.realtor_email = realtorEmail;
+      if (hasUpfront)     params.has_upfront_payment = hasUpfront;
       const res = await investmentsAPI.list(params);
       return res.data;
     }
@@ -77,7 +86,39 @@ export default function Investments() {
 
   const clearAdvancedFilters = () => {
     const p = new URLSearchParams(searchParams);
-    ['startDate','endDate','maturityStart','maturityEnd','clientEmail','realtorEmail','hasUpfront'].forEach(k => p.delete(k));
+    ['txnExact','startDate','endDate','maturityExact','maturityStart','maturityEnd','clientEmail','realtorEmail','hasUpfront'].forEach(k => p.delete(k));
+    p.set('page', '1');
+    setSearchParams(p);
+  };
+
+  const setTxnExact = (val: string) => {
+    const p = new URLSearchParams(searchParams);
+    if (val) { p.set('txnExact', val); p.delete('startDate'); p.delete('endDate'); }
+    else p.delete('txnExact');
+    p.set('page', '1');
+    setSearchParams(p);
+  };
+
+  const setTxnRange = (key: 'startDate' | 'endDate', val: string) => {
+    const p = new URLSearchParams(searchParams);
+    p.delete('txnExact');
+    if (val) p.set(key, val); else p.delete(key);
+    p.set('page', '1');
+    setSearchParams(p);
+  };
+
+  const setMaturityExact = (val: string) => {
+    const p = new URLSearchParams(searchParams);
+    if (val) { p.set('maturityExact', val); p.delete('maturityStart'); p.delete('maturityEnd'); }
+    else p.delete('maturityExact');
+    p.set('page', '1');
+    setSearchParams(p);
+  };
+
+  const setMaturityRange = (key: 'maturityStart' | 'maturityEnd', val: string) => {
+    const p = new URLSearchParams(searchParams);
+    p.delete('maturityExact');
+    if (val) p.set(key, val); else p.delete(key);
     p.set('page', '1');
     setSearchParams(p);
   };
@@ -204,49 +245,94 @@ export default function Investments() {
 
         {/* Advanced filter panel */}
         {showAdvanced && (
-          <div className="border-t border-gray-100 pt-3 space-y-3">
-            {/* Transaction date range */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Transaction Date — From</label>
-                <input
-                  type="date"
-                  className="input text-sm"
-                  value={startDate}
-                  onChange={e => updateParam('startDate', e.target.value)}
-                />
+          <div className="border-t border-gray-100 pt-3 space-y-4">
+
+            {/* Transaction Date */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Transaction Date</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Exact Date</label>
+                  <input
+                    type="date"
+                    className="input text-sm"
+                    value={txnExact}
+                    onChange={e => setTxnExact(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2 sm:col-span-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400 mb-1 block">From</label>
+                    <input
+                      type="date"
+                      className={`input text-sm ${txnExact ? 'opacity-40 pointer-events-none' : ''}`}
+                      value={startDate}
+                      onChange={e => setTxnRange('startDate', e.target.value)}
+                      disabled={!!txnExact}
+                    />
+                  </div>
+                  <span className="text-gray-300 text-sm mt-5">—</span>
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400 mb-1 block">To</label>
+                    <input
+                      type="date"
+                      className={`input text-sm ${txnExact ? 'opacity-40 pointer-events-none' : ''}`}
+                      value={endDate}
+                      onChange={e => setTxnRange('endDate', e.target.value)}
+                      disabled={!!txnExact}
+                    />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Transaction Date — To</label>
-                <input
-                  type="date"
-                  className="input text-sm"
-                  value={endDate}
-                  onChange={e => updateParam('endDate', e.target.value)}
-                />
+              {txnExact && (
+                <p className="text-xs text-blue-500 mt-1">Showing transactions on <strong>{txnExact}</strong> — clear Exact Date to use a range instead.</p>
+              )}
+            </div>
+
+            {/* Maturity Date */}
+            <div>
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Maturity Date</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 items-end">
+                <div>
+                  <label className="text-xs text-gray-400 mb-1 block">Exact Date</label>
+                  <input
+                    type="date"
+                    className="input text-sm"
+                    value={maturityExact}
+                    onChange={e => setMaturityExact(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-center gap-2 sm:col-span-2">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400 mb-1 block">From</label>
+                    <input
+                      type="date"
+                      className={`input text-sm ${maturityExact ? 'opacity-40 pointer-events-none' : ''}`}
+                      value={maturityStart}
+                      onChange={e => setMaturityRange('maturityStart', e.target.value)}
+                      disabled={!!maturityExact}
+                    />
+                  </div>
+                  <span className="text-gray-300 text-sm mt-5">—</span>
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-400 mb-1 block">To</label>
+                    <input
+                      type="date"
+                      className={`input text-sm ${maturityExact ? 'opacity-40 pointer-events-none' : ''}`}
+                      value={maturityEnd}
+                      onChange={e => setMaturityRange('maturityEnd', e.target.value)}
+                      disabled={!!maturityExact}
+                    />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Maturity Date — From</label>
-                <input
-                  type="date"
-                  className="input text-sm"
-                  value={maturityStart}
-                  onChange={e => updateParam('maturityStart', e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="text-xs font-medium text-gray-500 mb-1 block">Maturity Date — To</label>
-                <input
-                  type="date"
-                  className="input text-sm"
-                  value={maturityEnd}
-                  onChange={e => updateParam('maturityEnd', e.target.value)}
-                />
-              </div>
+              {maturityExact && (
+                <p className="text-xs text-blue-500 mt-1">Showing investments maturing on <strong>{maturityExact}</strong> — clear Exact Date to use a range instead.</p>
+              )}
             </div>
 
             {/* Email + upfront row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end border-t border-gray-100 pt-3">
               <div>
                 <label className="text-xs font-medium text-gray-500 mb-1 block">Client Email</label>
                 <input
@@ -282,7 +368,7 @@ export default function Investments() {
                     onClick={clearAdvancedFilters}
                     className="text-xs text-red-500 hover:text-red-700 font-medium flex items-center gap-1 ml-4"
                   >
-                    <X size={12} /> Clear filters
+                    <X size={12} /> Clear all
                   </button>
                 )}
               </div>
@@ -293,13 +379,15 @@ export default function Investments() {
         {/* Active filter chips */}
         {advancedFilterCount > 0 && (
           <div className="flex flex-wrap gap-2 pt-1">
-            {startDate && <FilterChip label={`Txn from: ${startDate}`} onRemove={() => updateParam('startDate', '')} />}
-            {endDate && <FilterChip label={`Txn to: ${endDate}`} onRemove={() => updateParam('endDate', '')} />}
-            {maturityStart && <FilterChip label={`Maturity from: ${maturityStart}`} onRemove={() => updateParam('maturityStart', '')} />}
-            {maturityEnd && <FilterChip label={`Maturity to: ${maturityEnd}`} onRemove={() => updateParam('maturityEnd', '')} />}
-            {clientEmail && <FilterChip label={`Client: ${clientEmail}`} onRemove={() => updateParam('clientEmail', '')} />}
-            {realtorEmail && <FilterChip label={`Realtor: ${realtorEmail}`} onRemove={() => updateParam('realtorEmail', '')} />}
-            {hasUpfront && <FilterChip label="Has upfront payment" onRemove={() => updateParam('hasUpfront', '')} />}
+            {txnExact      && <FilterChip label={`Txn date: ${txnExact}`} onRemove={() => setTxnExact('')} />}
+            {!txnExact && startDate && <FilterChip label={`Txn from: ${startDate}`} onRemove={() => setTxnRange('startDate', '')} />}
+            {!txnExact && endDate   && <FilterChip label={`Txn to: ${endDate}`} onRemove={() => setTxnRange('endDate', '')} />}
+            {maturityExact && <FilterChip label={`Maturity date: ${maturityExact}`} onRemove={() => setMaturityExact('')} />}
+            {!maturityExact && maturityStart && <FilterChip label={`Maturity from: ${maturityStart}`} onRemove={() => setMaturityRange('maturityStart', '')} />}
+            {!maturityExact && maturityEnd   && <FilterChip label={`Maturity to: ${maturityEnd}`} onRemove={() => setMaturityRange('maturityEnd', '')} />}
+            {clientEmail   && <FilterChip label={`Client: ${clientEmail}`} onRemove={() => updateParam('clientEmail', '')} />}
+            {realtorEmail  && <FilterChip label={`Realtor: ${realtorEmail}`} onRemove={() => updateParam('realtorEmail', '')} />}
+            {hasUpfront    && <FilterChip label="Has upfront payment" onRemove={() => updateParam('hasUpfront', '')} />}
           </div>
         )}
       </div>
