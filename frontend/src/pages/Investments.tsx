@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, Filter, Download, Eye, Edit, Trash2, ArrowUpDown, ChevronLeft, ChevronRight, Copy, X } from 'lucide-react';
+import { Search, Filter, Download, Eye, Edit, Trash2, ArrowUpDown, ChevronLeft, ChevronRight, Copy, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { investmentsAPI, bulkAPI } from '../api/client';
 import { formatCurrency, formatDate, getDaysLabel, downloadBlob } from '../utils/formatters';
 import StatusBadge from '../components/ui/StatusBadge';
@@ -13,26 +13,43 @@ export default function Investments() {
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
   const [duplicates, setDuplicates] = useState<any[] | null>(null);
   const [loadingDuplicates, setLoadingDuplicates] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const { isAdminOrAbove } = useAuth();
 
-  const status = searchParams.get('status') || '';
-  const search = searchParams.get('search') || '';
-  const page = parseInt(searchParams.get('page') || '1');
-  const sort = searchParams.get('sort') || 'createdAt';
-  const order = searchParams.get('order') || 'desc';
+  const status       = searchParams.get('status') || '';
+  const search       = searchParams.get('search') || '';
+  const page         = parseInt(searchParams.get('page') || '1');
+  const sort         = searchParams.get('sort') || 'createdAt';
+  const order        = searchParams.get('order') || 'desc';
+  const startDate    = searchParams.get('startDate') || '';
+  const endDate      = searchParams.get('endDate') || '';
+  const maturityStart = searchParams.get('maturityStart') || '';
+  const maturityEnd  = searchParams.get('maturityEnd') || '';
+  const clientEmail  = searchParams.get('clientEmail') || '';
+  const realtorEmail = searchParams.get('realtorEmail') || '';
+  const hasUpfront   = searchParams.get('hasUpfront') || '';
   const limit = 20;
 
-  const cacheKey = `investments:${status}:${search}:${page}:${sort}:${order}`;
+  const advancedFilterCount = [startDate, endDate, maturityStart, maturityEnd, clientEmail, realtorEmail, hasUpfront].filter(Boolean).length;
+
+  const cacheKey = `investments:${status}:${search}:${page}:${sort}:${order}:${startDate}:${endDate}:${maturityStart}:${maturityEnd}:${clientEmail}:${realtorEmail}:${hasUpfront}`;
 
   const { data, loading, refreshing, error, refresh } = useBackgroundFetch<{ investments: any[]; total: number }>(
     cacheKey,
     async () => {
       const params: Record<string, string> = { page: String(page), limit: String(limit) };
-      if (status) params.status = status;
-      if (search) params.search = search;
-      if (sort) params.sort_by = sort;
-      if (order) params.order = order;
+      if (status)        params.status = status;
+      if (search)        params.search = search;
+      if (sort)          params.sort_by = sort;
+      if (order)         params.order = order;
+      if (startDate)     params.start_date = startDate;
+      if (endDate)       params.end_date = endDate;
+      if (maturityStart) params.maturity_start = maturityStart;
+      if (maturityEnd)   params.maturity_end = maturityEnd;
+      if (clientEmail)   params.client_email = clientEmail;
+      if (realtorEmail)  params.realtor_email = realtorEmail;
+      if (hasUpfront)    params.has_upfront_payment = hasUpfront;
       const res = await investmentsAPI.list(params);
       return res.data;
     }
@@ -42,6 +59,11 @@ export default function Investments() {
     if (error) toast.error('Failed to load investments');
   }, [error]);
 
+  // Auto-open advanced panel if any advanced filter is active from URL
+  useEffect(() => {
+    if (advancedFilterCount > 0) setShowAdvanced(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const investments = data?.investments ?? [];
   const total = data?.total ?? 0;
   const totalPages = Math.ceil(total / limit);
@@ -50,6 +72,13 @@ export default function Investments() {
     const p = new URLSearchParams(searchParams);
     if (value) p.set(key, value); else p.delete(key);
     if (key !== 'page') p.set('page', '1');
+    setSearchParams(p);
+  };
+
+  const clearAdvancedFilters = () => {
+    const p = new URLSearchParams(searchParams);
+    ['startDate','endDate','maturityStart','maturityEnd','clientEmail','realtorEmail','hasUpfront'].forEach(k => p.delete(k));
+    p.set('page', '1');
     setSearchParams(p);
   };
 
@@ -134,33 +163,145 @@ export default function Investments() {
       </div>
 
       {/* Filters */}
-      <div className="card py-4">
+      <div className="card py-4 space-y-3">
+        {/* Primary filter row */}
         <div className="flex flex-wrap gap-3">
-          <div className="relative flex-1 min-w-[200px]">
+          <div className="relative flex-1 min-w-[180px]">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
               type="text"
-              placeholder="Search client, plot..."
+              placeholder="Search client, plot, email..."
               className="input pl-9"
               value={search}
               onChange={e => updateParam('search', e.target.value)}
             />
           </div>
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-gray-400" />
-            <select
-              className="input w-auto"
-              value={status}
-              onChange={e => updateParam('status', e.target.value)}
-            >
-              <option value="">All Status</option>
-              <option value="active">Active</option>
-              <option value="extended">Extended</option>
-              <option value="payment_initiated">Payment Initiated</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
+          <select
+            className="input w-auto"
+            value={status}
+            onChange={e => updateParam('status', e.target.value)}
+          >
+            <option value="">All Status</option>
+            <option value="active">Active</option>
+            <option value="extended">Extended</option>
+            <option value="payment_initiated">Payment Initiated</option>
+            <option value="completed">Completed</option>
+          </select>
+          <button
+            onClick={() => setShowAdvanced(v => !v)}
+            className={`btn-secondary flex items-center gap-2 text-sm ${advancedFilterCount > 0 ? 'ring-2 ring-blue-400 ring-offset-1' : ''}`}
+          >
+            <Filter size={15} />
+            Filters
+            {advancedFilterCount > 0 && (
+              <span className="bg-blue-600 text-white text-xs font-bold w-5 h-5 rounded-full flex items-center justify-center">
+                {advancedFilterCount}
+              </span>
+            )}
+            {showAdvanced ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
         </div>
+
+        {/* Advanced filter panel */}
+        {showAdvanced && (
+          <div className="border-t border-gray-100 pt-3 space-y-3">
+            {/* Transaction date range */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Transaction Date — From</label>
+                <input
+                  type="date"
+                  className="input text-sm"
+                  value={startDate}
+                  onChange={e => updateParam('startDate', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Transaction Date — To</label>
+                <input
+                  type="date"
+                  className="input text-sm"
+                  value={endDate}
+                  onChange={e => updateParam('endDate', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Maturity Date — From</label>
+                <input
+                  type="date"
+                  className="input text-sm"
+                  value={maturityStart}
+                  onChange={e => updateParam('maturityStart', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Maturity Date — To</label>
+                <input
+                  type="date"
+                  className="input text-sm"
+                  value={maturityEnd}
+                  onChange={e => updateParam('maturityEnd', e.target.value)}
+                />
+              </div>
+            </div>
+
+            {/* Email + upfront row */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 items-end">
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Client Email</label>
+                <input
+                  type="text"
+                  placeholder="e.g. john@email.com"
+                  className="input text-sm"
+                  value={clientEmail}
+                  onChange={e => updateParam('clientEmail', e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-500 mb-1 block">Realtor Email</label>
+                <input
+                  type="text"
+                  placeholder="e.g. realtor@agency.com"
+                  className="input text-sm"
+                  value={realtorEmail}
+                  onChange={e => updateParam('realtorEmail', e.target.value)}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="w-4 h-4 rounded accent-blue-600"
+                    checked={hasUpfront === 'true'}
+                    onChange={e => updateParam('hasUpfront', e.target.checked ? 'true' : '')}
+                  />
+                  <span className="text-sm text-gray-700">Has Upfront Payment</span>
+                </label>
+                {advancedFilterCount > 0 && (
+                  <button
+                    onClick={clearAdvancedFilters}
+                    className="text-xs text-red-500 hover:text-red-700 font-medium flex items-center gap-1 ml-4"
+                  >
+                    <X size={12} /> Clear filters
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Active filter chips */}
+        {advancedFilterCount > 0 && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {startDate && <FilterChip label={`Txn from: ${startDate}`} onRemove={() => updateParam('startDate', '')} />}
+            {endDate && <FilterChip label={`Txn to: ${endDate}`} onRemove={() => updateParam('endDate', '')} />}
+            {maturityStart && <FilterChip label={`Maturity from: ${maturityStart}`} onRemove={() => updateParam('maturityStart', '')} />}
+            {maturityEnd && <FilterChip label={`Maturity to: ${maturityEnd}`} onRemove={() => updateParam('maturityEnd', '')} />}
+            {clientEmail && <FilterChip label={`Client: ${clientEmail}`} onRemove={() => updateParam('clientEmail', '')} />}
+            {realtorEmail && <FilterChip label={`Realtor: ${realtorEmail}`} onRemove={() => updateParam('realtorEmail', '')} />}
+            {hasUpfront && <FilterChip label="Has upfront payment" onRemove={() => updateParam('hasUpfront', '')} />}
+          </div>
+        )}
       </div>
 
       {/* Mobile card list */}
@@ -410,5 +551,16 @@ export default function Investments() {
         </div>
       )}
     </div>
+  );
+}
+
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded-full">
+      {label}
+      <button onClick={onRemove} className="hover:text-blue-900 ml-0.5">
+        <X size={11} />
+      </button>
+    </span>
   );
 }

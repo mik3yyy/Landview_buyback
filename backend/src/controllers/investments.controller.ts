@@ -24,6 +24,11 @@ export async function listInvestments(req: AuthRequest, res: Response) {
     limit = '20',
     start_date,
     end_date,
+    maturity_start,
+    maturity_end,
+    client_email,
+    realtor_email,
+    has_upfront_payment,
   } = req.query as Record<string, string>;
 
   const pageNum = parseInt(page);
@@ -38,12 +43,36 @@ export async function listInvestments(req: AuthRequest, res: Response) {
       { clientName: { contains: search, mode: 'insensitive' } },
       { plotNumber: { contains: search, mode: 'insensitive' } },
       { realtorName: { contains: search, mode: 'insensitive' } },
+      { clientEmail: { contains: search, mode: 'insensitive' } },
+      { realtorEmail: { contains: search, mode: 'insensitive' } },
     ];
   }
   if (start_date || end_date) {
     where.transactionDate = {};
-    if (start_date) where.transactionDate.gte = new Date(start_date);
-    if (end_date) where.transactionDate.lte = new Date(end_date);
+    if (start_date) (where.transactionDate as any).gte = new Date(start_date);
+    if (end_date) {
+      const end = new Date(end_date);
+      end.setHours(23, 59, 59, 999);
+      (where.transactionDate as any).lte = end;
+    }
+  }
+  if (maturity_start || maturity_end) {
+    where.maturityDate = {};
+    if (maturity_start) (where.maturityDate as any).gte = new Date(maturity_start);
+    if (maturity_end) {
+      const end = new Date(maturity_end);
+      end.setHours(23, 59, 59, 999);
+      (where.maturityDate as any).lte = end;
+    }
+  }
+  if (client_email) {
+    where.clientEmail = { contains: client_email, mode: 'insensitive' };
+  }
+  if (realtor_email) {
+    where.realtorEmail = { contains: realtor_email, mode: 'insensitive' };
+  }
+  if (has_upfront_payment === 'true') {
+    where.upfrontPayment = { gt: 0 };
   }
 
   const validSortFields = ['createdAt', 'transactionDate', 'maturityDate', 'principal', 'clientName'];
