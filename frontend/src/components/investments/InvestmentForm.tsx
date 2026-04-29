@@ -112,10 +112,35 @@ export default function InvestmentForm({ initialData, investmentId, onSuccess, o
         </div>
         <div>
           <label className="label">Duration *</label>
-          <select className="input" value={form.duration} onChange={set('duration')} required>
+          <select
+            className="input"
+            value={DURATION_OPTIONS.includes(form.duration) ? form.duration : 'custom'}
+            onChange={e => {
+              if (e.target.value !== 'custom') set('duration')(e as any);
+              else setForm(prev => ({ ...prev, duration: '' }));
+            }}
+            required
+          >
             {DURATION_OPTIONS.map(d => <option key={d}>{d}</option>)}
             <option value="custom">Custom...</option>
           </select>
+          {!DURATION_OPTIONS.includes(form.duration) && (
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                type="number"
+                className="input"
+                placeholder="e.g. 4"
+                min="1"
+                value={form.duration.replace(/\D/g, '')}
+                onChange={e => {
+                  const n = e.target.value;
+                  setForm(prev => ({ ...prev, duration: n ? `${n} months` : '' }));
+                }}
+                required
+              />
+              <span className="text-sm text-gray-500 whitespace-nowrap">months</span>
+            </div>
+          )}
         </div>
       </div>
 
