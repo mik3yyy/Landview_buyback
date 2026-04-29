@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
 import { Search, Clock, CheckCircle, XCircle, ChevronLeft, ChevronRight, ExternalLink, Copy, Check } from 'lucide-react';
 import { applicationsAPI } from '../../api/client';
 import { formatCurrency } from '../../utils/formatters';
@@ -18,6 +18,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 export default function Applications() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [copied, setCopied] = useState(false);
 
   const status = searchParams.get('status') || '';
@@ -162,7 +163,11 @@ export default function Applications() {
               ) : applications.length === 0 ? (
                 <tr><td colSpan={7} className="text-center py-12 text-gray-400">No applications found</td></tr>
               ) : applications.map((app: any) => (
-                <tr key={app.id} className="hover:bg-gray-50 transition-colors">
+                <tr
+                  key={app.id}
+                  onClick={() => navigate(`/admin/applications/${app.id}`)}
+                  className="hover:bg-gray-50 transition-colors cursor-pointer"
+                >
                   <td className="px-4 py-3 font-medium text-gray-900">{app.surname} {app.otherNames}</td>
                   <td className="px-4 py-3 text-gray-500 text-xs">
                     <div>{app.phoneNumber}</div>
@@ -176,11 +181,7 @@ export default function Applications() {
                       {STATUS_LABELS[app.status]}
                     </span>
                   </td>
-                  <td className="px-4 py-3">
-                    <Link to={`/admin/applications/${app.id}`} className="text-blue-600 hover:text-blue-700 text-sm font-medium">
-                      View →
-                    </Link>
-                  </td>
+                  <td className="px-4 py-3 text-gray-300 text-sm">→</td>
                 </tr>
               ))}
             </tbody>

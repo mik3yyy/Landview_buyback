@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
-import { Search, Filter, Download, Eye, Edit, Trash2, ArrowUpDown, ChevronLeft, ChevronRight, Copy, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { Link, useSearchParams, useNavigate } from 'react-router-dom';
+import { Search, Filter, Download, Edit, Trash2, ArrowUpDown, ChevronLeft, ChevronRight, Copy, X, ChevronDown, ChevronUp } from 'lucide-react';
 import { investmentsAPI, bulkAPI } from '../api/client';
 import { formatCurrency, formatDate, getDaysLabel, downloadBlob } from '../utils/formatters';
 import StatusBadge from '../components/ui/StatusBadge';
@@ -16,6 +16,7 @@ export default function Investments() {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const { isAdminOrAbove } = useAuth();
+  const navigate = useNavigate();
 
   const status        = searchParams.get('status') || '';
   const search        = searchParams.get('search') || '';
@@ -474,7 +475,11 @@ export default function Investments() {
                 const days = inv.daysUntilMaturity;
                 const isOverdue = (inv.status === 'active' || inv.status === 'extended') && days < 0;
                 return (
-                  <tr key={inv.id} className={`hover:bg-gray-50 transition-colors ${refreshing ? 'opacity-75' : ''}`}>
+                  <tr
+                    key={inv.id}
+                    onClick={() => navigate(`/investments/${inv.id}`)}
+                    className={`hover:bg-gray-50 transition-colors cursor-pointer ${refreshing ? 'opacity-75' : ''}`}
+                  >
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{inv.clientName}</div>
                       <div className="text-xs text-gray-400">{inv.clientEmail || '—'}</div>
@@ -491,11 +496,8 @@ export default function Investments() {
                         </span>
                       ) : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                       <div className="flex items-center gap-2">
-                        <Link to={`/investments/${inv.id}`} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors">
-                          <Eye size={16} />
-                        </Link>
                         {isAdminOrAbove && inv.status !== 'completed' && (
                           <Link to={`/investments/${inv.id}/edit`} className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors">
                             <Edit size={16} />
