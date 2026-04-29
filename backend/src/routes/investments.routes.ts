@@ -4,7 +4,7 @@ import {
   extendInvestment, markPaymentInitiated, markPaymentCompleted,
   deleteInvestment, getDashboardStats, exportInvestments,
   bulkCreateInvestments, findDuplicates,
-  sendMaturityReminders, getInvestmentByToken, submitClientIntention, markUpfrontPaid,
+  sendMaturityReminders, getReminderCandidates, getInvestmentByToken, submitClientIntention, markUpfrontPaid,
 } from '../controllers/investments.controller';
 import { authenticate } from '../middleware/auth.middleware';
 import { isAdminOrAbove, isAnyRole } from '../middleware/rbac.middleware';
@@ -18,6 +18,7 @@ router.post('/response/:token', submitClientIntention as any);
 router.use(authenticate);
 
 router.get('/dashboard', isAnyRole, getDashboardStats);
+router.get('/reminder-candidates', isAdminOrAbove, getReminderCandidates);
 router.get('/export', isAdminOrAbove, exportInvestments);
 router.get('/duplicates', isAdminOrAbove, findDuplicates);
 router.post('/bulk', isAnyRole, bulkCreateInvestments);

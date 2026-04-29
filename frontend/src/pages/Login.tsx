@@ -89,12 +89,6 @@ export default function Login() {
           </button>
         </form>
 
-        <div className="mt-6 p-4 bg-gray-50 rounded-lg text-xs text-gray-500">
-          <p className="font-medium text-gray-600 mb-1">Demo Credentials:</p>
-          <p>Super Admin: superadmin@landview.com</p>
-          <p>Admin: admin@landview.com</p>
-          <p>Accountant: accountant@landview.com</p>
-        </div>
       </div>
     </div>
   );

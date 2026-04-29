@@ -118,6 +118,7 @@ export async function getInvestment(req: AuthRequest, res: Response) {
       paymentInitiatedUser: { select: { fullName: true } },
       paymentCompletedUser: { select: { fullName: true } },
       extensions: { orderBy: { extendedAt: 'desc' } },
+      application: { select: { id: true } },
     },
   });
 
@@ -462,7 +463,7 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
     recentInvestments, investmentsToday, urgentInvestments,
     maturingIn7Days, maturingNextMonth,
     maturingToday, upfrontDueToday, upfrontDueThisWeek,
-    clientIntentions, maturingIn4WeeksCount,
+    clientIntentions, maturingIn4WeeksCount, maturingIn4Weeks,
   ] = await Promise.all([
     prisma.investment.count({ where: { status: 'active' } }),
     prisma.investment.count({ where: { status: 'completed' } }),
@@ -538,6 +539,16 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
         clientEmail: { not: null },
       },
     }),
+    // List of investments maturing in < 4 weeks with email (preview before sending)
+    prisma.investment.findMany({
+      where: {
+        maturityDate: { gte: today, lte: fourWeeksOut },
+        status: activeStatuses,
+        clientEmail: { not: null },
+      },
+      orderBy: { maturityDate: 'asc' },
+      select: investmentSelect,
+    }),
   ]);
 
   return res.json({
@@ -547,8 +558,40 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
     recentInvestments, investmentsToday, urgentInvestments,
     maturingIn7Days, maturingNextMonth,
     maturingToday, upfrontDueToday, upfrontDueThisWeek,
-    clientIntentions, maturingIn4WeeksCount,
+    clientIntentions, maturingIn4WeeksCount, maturingIn4Weeks,
   });
+}
+
+// GET /api/investments/reminder-candidates
+export async function getReminderCandidates(req: AuthRequest, res: Response) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const fourWeeksOut = new Date(today); fourWeeksOut.setDate(today.getDate() + 28); fourWeeksOut.setHours(23, 59, 59, 999);
+
+  const [candidates, responses] = await Promise.all([
+    prisma.investment.findMany({
+      where: {
+        maturityDate: { gte: today, lte: fourWeeksOut },
+        status: { in: ['active', 'extended'] as any[] },
+        clientEmail: { not: null },
+      },
+      orderBy: { maturityDate: 'asc' },
+      select: {
+        id: true, clientName: true, clientEmail: true, plotNumber: true,
+        principal: true, maturityAmount: true, maturityDate: true, status: true, realtorName: true,
+      },
+    }),
+    prisma.investment.findMany({
+      where: { clientIntention: { not: null }, status: { in: ['active', 'extended'] as any[] } },
+      orderBy: { clientIntentionAt: 'desc' },
+      select: {
+        id: true, clientName: true, plotNumber: true, principal: true, maturityAmount: true,
+        maturityDate: true, status: true, clientIntention: true, clientIntentionMessage: true,
+        clientIntentionAt: true,
+      },
+    }),
+  ]);
+
+  return res.json({ candidates, responses });
 }
 
 // POST /api/investments/send-maturity-reminders
@@ -556,13 +599,17 @@ export async function sendMaturityReminders(req: AuthRequest, res: Response) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const fourWeeksOut = new Date(today); fourWeeksOut.setDate(today.getDate() + 28); fourWeeksOut.setHours(23, 59, 59, 999);
 
-  const investments = await prisma.investment.findMany({
-    where: {
-      maturityDate: { gte: today, lte: fourWeeksOut },
-      status: { in: ['active', 'extended'] as any[] },
-      clientEmail: { not: null },
-    },
-  });
+  const { investmentIds } = req.body as { investmentIds?: string[] };
+
+  const whereClause: any = investmentIds?.length
+    ? { id: { in: investmentIds }, clientEmail: { not: null } }
+    : {
+        maturityDate: { gte: today, lte: fourWeeksOut },
+        status: { in: ['active', 'extended'] as any[] },
+        clientEmail: { not: null },
+      };
+
+  const investments = await prisma.investment.findMany({ where: whereClause });
 
   let sent = 0; let failed = 0;
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';

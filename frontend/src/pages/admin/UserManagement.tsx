@@ -154,18 +154,22 @@ export default function UserManagement() {
                 </td>
                 <td className="px-5 py-3 text-gray-500 text-xs">{formatDate(u.createdAt)}</td>
                 <td className="px-5 py-3">
-                  {u.id !== currentUser?.id && (
+                  {u.id !== currentUser?.id && (isSuperAdmin || u.role !== 'super_admin') && (
                     <div className="flex items-center gap-2">
-                      <button onClick={() => openEdit(u)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded">
-                        <Edit size={15} />
-                      </button>
-                      <button
-                        onClick={() => handleToggleActive(u)}
-                        className={`p-1.5 rounded ${u.isActive ? 'text-gray-400 hover:text-orange-600 hover:bg-orange-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}
-                        title={u.isActive ? 'Deactivate' : 'Activate'}
-                      >
-                        {u.isActive ? <XCircle size={15} /> : <CheckCircle size={15} />}
-                      </button>
+                      {(isSuperAdmin || u.role !== 'super_admin') && (
+                        <button onClick={() => openEdit(u)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded">
+                          <Edit size={15} />
+                        </button>
+                      )}
+                      {(isSuperAdmin || u.role !== 'super_admin') && (
+                        <button
+                          onClick={() => handleToggleActive(u)}
+                          className={`p-1.5 rounded ${u.isActive ? 'text-gray-400 hover:text-orange-600 hover:bg-orange-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}
+                          title={u.isActive ? 'Deactivate' : 'Activate'}
+                        >
+                          {u.isActive ? <XCircle size={15} /> : <CheckCircle size={15} />}
+                        </button>
+                      )}
                       {isSuperAdmin && u.role !== 'super_admin' && (
                         <button onClick={() => setDeletingUser(u)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded">
                           <Trash2 size={15} />

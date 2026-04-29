@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Edit, TrendingUp, Calendar, Clock, User,
-  Mail, Home, CheckCircle, RefreshCw, Trash2
+  Mail, Home, CheckCircle, RefreshCw, Trash2, FileText
 } from 'lucide-react';
 import { investmentsAPI } from '../api/client';
 import { formatCurrency, formatDate, formatDateTime, getDaysLabel } from '../utils/formatters';
@@ -286,6 +286,20 @@ export default function InvestmentDetail() {
               <div className="text-gray-500 text-xs">{formatDateTime(investment.createdAt)}</div>
             </div>
           </div>
+
+          {investment.application?.id && (
+            <div className="card">
+              <h2 className="font-semibold text-gray-900 mb-3 text-sm flex items-center gap-2">
+                <FileText size={15} className="text-blue-500" /> Online Registration
+              </h2>
+              <Link
+                to={`/admin/applications/${investment.application.id}`}
+                className="btn-secondary text-sm w-full text-center justify-center flex items-center gap-2"
+              >
+                <FileText size={14} /> View Registration Details
+              </Link>
+            </div>
+          )}
 
           {investment.documentUrl && (
             <div className="card">

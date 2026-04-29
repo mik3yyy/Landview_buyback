@@ -11,6 +11,7 @@ import NewInvestment from './pages/NewInvestment';
 import EditInvestment from './pages/EditInvestment';
 import AIUpload from './pages/AIUpload';
 import BulkUpload from './pages/BulkUpload';
+import MaturityReminders from './pages/MaturityReminders';
 import UserManagement from './pages/admin/UserManagement';
 import AuditLogs from './pages/admin/AuditLogs';
 import SystemSettings from './pages/admin/SystemSettings';
@@ -55,6 +56,7 @@ function AppRoutes() {
         <Route path="/investments/:id/edit" element={
           <ProtectedRoute adminOnly><EditInvestment /></ProtectedRoute>
         } />
+        <Route path="/maturity-reminders" element={<MaturityReminders />} />
         <Route path="/ai-upload" element={<AIUpload />} />
         <Route path="/bulk-upload" element={<BulkUpload />} />
 

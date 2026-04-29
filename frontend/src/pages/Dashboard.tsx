@@ -1,10 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   TrendingUp, FileText, CheckCircle, Clock,
-  ArrowRight, PlusCircle, Upload, Flame, CalendarCheck, List,
+  ArrowRight, PlusCircle, Flame, CalendarCheck, List,
   Bell, CalendarRange, ChevronDown, ChevronRight as ChevronRightIcon,
-  Banknote, MessageSquare, Send,
+  Banknote,
 } from 'lucide-react';
 import { investmentsAPI, responseAPI } from '../api/client';
 import { formatCurrency, formatDate } from '../utils/formatters';
@@ -32,19 +32,6 @@ interface UpfrontRow extends InvestmentRow {
   clientEmail?: string;
 }
 
-interface IntentionRow {
-  id: string;
-  clientName: string;
-  plotNumber: string;
-  principal: number;
-  maturityAmount: number;
-  maturityDate: string;
-  status: string;
-  clientIntention: string;
-  clientIntentionMessage?: string;
-  clientIntentionAt?: string;
-}
-
 interface Stats {
   totalActive: number;
   totalCompleted: number;
@@ -61,8 +48,6 @@ interface Stats {
   maturingToday: InvestmentRow[];
   upfrontDueToday: UpfrontRow[];
   upfrontDueThisWeek: UpfrontRow[];
-  clientIntentions: IntentionRow[];
-  maturingIn4WeeksCount: number;
 }
 
 const STATUS_STYLES: Record<string, string> = {
@@ -271,20 +256,8 @@ function daysUntilUpfront(txDate: string) {
   return <span className="text-orange-500 text-xs">{diff}d left</span>;
 }
 
-const INTENTION_LABELS: Record<string, string> = {
-  extend: 'Wants to Extend',
-  withdraw: 'Wants Full Payout',
-  partial: 'Partial Withdrawal',
-};
-const INTENTION_COLORS: Record<string, string> = {
-  extend: 'bg-blue-100 text-blue-700',
-  withdraw: 'bg-green-100 text-green-700',
-  partial: 'bg-orange-100 text-orange-700',
-};
-
 export default function Dashboard() {
   const { user } = useAuth();
-  const [sendingReminders, setSendingReminders] = useState(false);
 
   const { data: stats, loading, refreshing, error, refresh } = useBackgroundFetch<Stats>(
     'dashboard',
@@ -294,21 +267,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (error) toast.error('Failed to load dashboard');
   }, [error]);
-
-  const handleSendReminders = async () => {
-    const count = stats?.maturingIn4WeeksCount ?? 0;
-    if (count === 0) { toast('No clients with email maturing in the next 4 weeks'); return; }
-    setSendingReminders(true);
-    try {
-      const res = await responseAPI.sendReminders();
-      toast.success(`Sent ${res.data.sent} email${res.data.sent !== 1 ? 's' : ''}${res.data.failed > 0 ? `, ${res.data.failed} failed` : ''}`);
-      refresh();
-    } catch {
-      toast.error('Failed to send reminders');
-    } finally {
-      setSendingReminders(false);
-    }
-  };
 
   const handleMarkUpfrontPaid = async (id: string) => {
     try {
@@ -344,18 +302,8 @@ export default function Dashboard() {
           <p className="text-gray-500 text-sm mt-0.5">Welcome back, {user?.fullName}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          {(stats?.maturingIn4WeeksCount ?? 0) > 0 && (
-            <button
-              onClick={handleSendReminders}
-              disabled={sendingReminders}
-              className="btn-secondary flex items-center gap-2 text-sm border-orange-300 text-orange-700 hover:bg-orange-50"
-            >
-              <Send size={15} />
-              {sendingReminders ? 'Sending...' : `Send Maturity Reminders (${stats!.maturingIn4WeeksCount})`}
-            </button>
-          )}
-          <Link to="/ai-upload" className="btn-secondary flex items-center gap-2 text-sm">
-            <Upload size={15} /> AI Upload
+          <Link to="/maturity-reminders" className="btn-secondary flex items-center gap-2 text-sm border-orange-300 text-orange-700 hover:bg-orange-50">
+            <Bell size={15} /> Maturity &amp; Reminders
           </Link>
           <Link to="/investments/new" className="btn-primary flex items-center gap-2 text-sm">
             <PlusCircle size={15} /> New Investment
@@ -394,23 +342,19 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Urgent — always expanded, no collapse (critical) */}
+      {/* Urgent */}
       {(stats?.urgentInvestments?.length ?? 0) > 0 && (
-        <div className="card border-l-4 border-red-500">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Flame size={18} className="text-red-500" />
-              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Urgent — Needs Immediate Action</h2>
-              <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full">
-                {stats!.urgentInvestments.length}
-              </span>
-            </div>
-            <Link to="/investments" className="text-red-600 hover:text-red-700 text-sm font-medium flex items-center gap-1 flex-shrink-0">
-              View all <ArrowRight size={14} />
-            </Link>
-          </div>
+        <CollapsibleSection
+          icon={<Flame size={18} className="text-red-500" />}
+          title="Urgent — Needs Immediate Action"
+          count={stats!.urgentInvestments.length}
+          borderColor="border-red-500"
+          badgeColor="bg-red-100 text-red-700"
+          defaultOpen
+          viewAllTo="/investments"
+        >
           <InvestmentTable rows={stats!.urgentInvestments} emptyMsg="No urgent investments" />
-        </div>
+        </CollapsibleSection>
       )}
 
       {/* Maturing Today */}
@@ -453,40 +397,6 @@ export default function Dashboard() {
       >
         <UpfrontTable rows={stats?.upfrontDueThisWeek ?? []} onMarkPaid={handleMarkUpfrontPaid} />
       </CollapsibleSection>
-
-      {/* Client Responses */}
-      {(stats?.clientIntentions?.length ?? 0) > 0 && (
-        <CollapsibleSection
-          icon={<MessageSquare size={18} className="text-purple-500" />}
-          title="Client Responses"
-          subtitle="Clients who replied to maturity reminders"
-          count={stats!.clientIntentions.length}
-          borderColor="border-purple-400"
-          badgeColor="bg-purple-100 text-purple-700"
-          defaultOpen
-        >
-          <div className="space-y-2">
-            {stats!.clientIntentions.map(inv => (
-              <Link key={inv.id} to={`/investments/${inv.id}`}
-                className="flex items-center justify-between bg-gray-50 hover:bg-gray-100 rounded-lg p-3 transition-colors">
-                <div>
-                  <div className="font-medium text-gray-900 text-sm">{inv.clientName}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">Plot {inv.plotNumber} · {formatCurrency(Number(inv.maturityAmount))} · {formatDate(inv.maturityDate)}</div>
-                  {inv.clientIntentionMessage && (
-                    <div className="text-xs text-gray-400 mt-0.5 italic">"{inv.clientIntentionMessage}"</div>
-                  )}
-                </div>
-                <div className="flex items-center gap-2 flex-shrink-0">
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${INTENTION_COLORS[inv.clientIntention] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {INTENTION_LABELS[inv.clientIntention] ?? inv.clientIntention}
-                  </span>
-                  <ArrowRight size={14} className="text-gray-400" />
-                </div>
-              </Link>
-            ))}
-          </div>
-        </CollapsibleSection>
-      )}
 
       {/* Today */}
       <CollapsibleSection

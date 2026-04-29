@@ -91,8 +91,9 @@ export const responseAPI = {
   getByToken: (token: string) => publicApi.get(`/investments/response/${token}`),
   submit: (token: string, data: { intention: string; message?: string }) =>
     publicApi.post(`/investments/response/${token}`, data),
-  sendReminders: () => api.post('/investments/send-maturity-reminders'),
+  sendReminders: (investmentIds: string[]) => api.post('/investments/send-maturity-reminders', { investmentIds }),
   markUpfrontPaid: (id: string) => api.post(`/investments/${id}/mark-upfront-paid`),
+  getReminderCandidates: () => api.get('/investments/reminder-candidates'),
 };
 
 // Applications (public + admin)
