@@ -38,6 +38,9 @@ enum ActionType {
   APPLICATION_SUBMITTED
   APPLICATION_APPROVED
   APPLICATION_REJECTED
+  SEND_MATURITY_REMINDERS
+  CLIENT_INTENTION_RECEIVED
+  MARK_UPFRONT_PAID
 }
 
 enum ApplicationStatus {
@@ -87,6 +90,11 @@ model Investment {
   documentUrl         String?
   paymentInitiatedAt  DateTime?
   paymentCompletedAt  DateTime?
+  upfrontPaidAt       DateTime?
+  responseToken       String?          @unique
+  clientIntention     String?
+  clientIntentionMessage String?
+  clientIntentionAt   DateTime?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 

@@ -27,6 +27,58 @@ interface InvestmentEmailData {
   roiAmount: number;
 }
 
+export async function sendMaturityReminderEmail(data: {
+  clientName: string;
+  clientEmail: string;
+  realtorEmail?: string;
+  plotNumber: string;
+  principal: number;
+  maturityAmount: number;
+  maturityDate: Date;
+  interestRate: number;
+  responseUrl: string;
+}): Promise<void> {
+  const daysLeft = Math.ceil((data.maturityDate.getTime() - Date.now()) / 86400000);
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+      <div style="background: #1e3a5f; color: white; padding: 24px; border-radius: 8px 8px 0 0; text-align:center;">
+        <h1 style="margin: 0; font-size: 22px;">Your Investment is Maturing Soon</h1>
+        <p style="margin: 8px 0 0; opacity: 0.8;">Landview Property Investments Limited</p>
+      </div>
+      <div style="background: white; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #e0e0e0;">
+        <p>Dear <strong>${data.clientName}</strong>,</p>
+        <p>Your investment is maturing in <strong>${daysLeft} day${daysLeft !== 1 ? 's' : ''}</strong> on <strong>${formatDate(data.maturityDate)}</strong>. We want to make sure you are ready and ask what you would like to do.</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr style="background:#f5f5f5;"><td style="padding:10px;border:1px solid #ddd;"><strong>Plot Number</strong></td><td style="padding:10px;border:1px solid #ddd;">${data.plotNumber}</td></tr>
+          <tr><td style="padding:10px;border:1px solid #ddd;"><strong>Principal</strong></td><td style="padding:10px;border:1px solid #ddd;">${formatCurrency(data.principal)}</td></tr>
+          <tr style="background:#f5f5f5;"><td style="padding:10px;border:1px solid #ddd;"><strong>Interest Rate</strong></td><td style="padding:10px;border:1px solid #ddd;">${data.interestRate}%</td></tr>
+          <tr style="background:#e8f4fd;"><td style="padding:10px;border:1px solid #ddd;"><strong>Total at Maturity</strong></td><td style="padding:10px;border:1px solid #ddd;font-size:1.2em;color:#1e3a5f;"><strong>${formatCurrency(data.maturityAmount)}</strong></td></tr>
+          <tr><td style="padding:10px;border:1px solid #ddd;"><strong>Maturity Date</strong></td><td style="padding:10px;border:1px solid #ddd;">${formatDate(data.maturityDate)}</td></tr>
+        </table>
+        <p style="color:#444;">Would you like to <strong>extend your investment</strong> for another term, receive a <strong>partial payout</strong> and reinvest the rest, or simply <strong>collect your full payout</strong> at maturity?</p>
+        <div style="text-align:center; margin: 30px 0;">
+          <a href="${data.responseUrl}" style="background:#1e3a5f;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block;">
+            Let Us Know Your Decision →
+          </a>
+        </div>
+        <p style="color:#888;font-size:12px;">Or copy this link: <a href="${data.responseUrl}" style="color:#1e3a5f;">${data.responseUrl}</a></p>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
+        <p style="color:#666;font-size:13px;">If you have any questions, please contact us or visit our office at Road 12, Block 10B, Plot 8, Lekki Scheme II, Ajah, Lagos.</p>
+        <p style="margin-top: 20px; color: #666;">Best regards,<br><strong>Landview Investment Team</strong></p>
+      </div>
+    </div>
+  `;
+
+  const msg: any = {
+    to: data.clientEmail,
+    from: { email: FROM_EMAIL, name: FROM_NAME },
+    subject: `Action Required: Your Investment Matures in ${daysLeft} Day${daysLeft !== 1 ? 's' : ''} — Plot ${data.plotNumber}`,
+    html,
+  };
+  if (data.realtorEmail) msg.cc = data.realtorEmail;
+  await sgMail.send(msg);
+}
+
 export async function sendMaturityNotification(data: InvestmentEmailData): Promise<void> {
   const html = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">

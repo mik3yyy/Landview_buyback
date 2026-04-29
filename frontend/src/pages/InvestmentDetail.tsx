@@ -16,6 +16,7 @@ import toast from 'react-hot-toast';
 interface ExtendFormData {
   new_duration: string;
   new_interest_rate: string;
+  new_principal: string;
 }
 
 export default function InvestmentDetail() {
@@ -27,7 +28,7 @@ export default function InvestmentDetail() {
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
-  const [extendForm, setExtendForm] = useState<ExtendFormData>({ new_duration: '6 months', new_interest_rate: '' });
+  const [extendForm, setExtendForm] = useState<ExtendFormData>({ new_duration: '6 months', new_interest_rate: '', new_principal: '' });
 
   const { data: investment, loading, refreshing, error, refresh } = useBackgroundFetch<any>(
     `investment:${id}`,
@@ -300,8 +301,18 @@ export default function InvestmentDetail() {
       {/* Extend Modal */}
       <Modal isOpen={showExtendModal} onClose={() => setShowExtendModal(false)} title="Extend Investment">
         <form onSubmit={handleExtend} className="space-y-4">
+          {investment.clientIntention && (
+            <div className={`rounded-lg p-3 text-sm border ${
+              investment.clientIntention === 'extend' ? 'bg-blue-50 border-blue-200 text-blue-800' :
+              investment.clientIntention === 'partial' ? 'bg-orange-50 border-orange-200 text-orange-800' :
+              'bg-green-50 border-green-200 text-green-800'
+            }`}>
+              <p className="font-semibold mb-0.5">Client's Response: {investment.clientIntention === 'extend' ? 'Wants to Extend' : investment.clientIntention === 'partial' ? 'Partial Withdrawal' : 'Wants Full Payout'}</p>
+              {investment.clientIntentionMessage && <p className="text-xs opacity-80">"{investment.clientIntentionMessage}"</p>}
+            </div>
+          )}
           <div>
-            <label className="label">Additional Duration *</label>
+            <label className="label">New Duration *</label>
             <select className="input" value={extendForm.new_duration} onChange={e => setExtendForm(p => ({ ...p, new_duration: e.target.value }))}>
               {['1 month', '2 months', '3 months', '6 months', '9 months', '12 months'].map(d => <option key={d}>{d}</option>)}
             </select>
@@ -315,9 +326,25 @@ export default function InvestmentDetail() {
               onChange={e => setExtendForm(p => ({ ...p, new_interest_rate: e.target.value }))}
             />
           </div>
-          <p className="text-sm text-gray-500">
-            Current maturity: <strong>{formatDate(investment.maturityDate)}</strong>
-          </p>
+          <div>
+            <label className="label">New Principal (₦) — for partial withdrawal</label>
+            <input
+              type="number" className="input"
+              placeholder={`Full reinvestment: ${formatCurrency(Number(investment.maturityAmount))}`}
+              step="1000" min="0"
+              value={extendForm.new_principal}
+              onChange={e => setExtendForm(p => ({ ...p, new_principal: e.target.value }))}
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Current maturity amount: <strong>{formatCurrency(Number(investment.maturityAmount))}</strong>.
+              Leave blank to reinvest in full. Enter a lower amount if client is withdrawing some.
+            </p>
+          </div>
+          {extendForm.new_principal && parseFloat(extendForm.new_principal) < Number(investment.maturityAmount) && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-sm text-orange-800">
+              Client will withdraw <strong>{formatCurrency(Number(investment.maturityAmount) - parseFloat(extendForm.new_principal))}</strong> and reinvest <strong>{formatCurrency(parseFloat(extendForm.new_principal))}</strong>.
+            </div>
+          )}
           <div className="flex gap-3 justify-end">
             <button type="button" onClick={() => setShowExtendModal(false)} className="btn-secondary">Cancel</button>
             <button type="submit" className="btn-primary" disabled={actionLoading}>

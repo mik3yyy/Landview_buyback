@@ -11,6 +11,7 @@ import {
 import {
   sendExtensionConfirmation,
   sendPaymentCompletion,
+  sendMaturityReminderEmail,
 } from '../services/email.service';
 import { Prisma, InvestmentStatus } from '@prisma/client';
 
@@ -259,16 +260,18 @@ export async function updateInvestment(req: AuthRequest, res: Response) {
 
 export async function extendInvestment(req: AuthRequest, res: Response) {
   const { id } = req.params;
-  const { new_duration, new_interest_rate } = req.body;
+  const { new_duration, new_interest_rate, new_principal } = req.body;
 
   const existing = await prisma.investment.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Investment not found' });
   if (existing.status === 'completed') return res.status(400).json({ error: 'Cannot extend completed investment' });
 
   const newInterestRate = new_interest_rate ? parseFloat(new_interest_rate) : Number(existing.interestRate);
-  const newMaturityDate = calculateMaturityDate(existing.maturityDate, new_duration);
-  const newRoi = calculateROI(Number(existing.principal), newInterestRate);
-  const newMaturityAmount = calculateMaturityAmount(Number(existing.principal), newRoi, Number(existing.upfrontPayment || 0));
+  // Support partial withdrawal: new_principal overrides existing principal
+  const principalToUse = new_principal ? parseFloat(new_principal) : Number(existing.principal);
+  const newMaturityDate = calculateMaturityDate(new Date(), new_duration);
+  const newRoi = calculateROI(principalToUse, newInterestRate);
+  const newMaturityAmount = calculateMaturityAmount(principalToUse, newRoi, 0);
 
   const [extension, updated] = await prisma.$transaction([
     prisma.investmentExtension.create({
@@ -286,11 +289,16 @@ export async function extendInvestment(req: AuthRequest, res: Response) {
     prisma.investment.update({
       where: { id },
       data: {
-        duration: `${existing.duration} + ${new_duration}`,
+        duration: new_duration,
+        principal: principalToUse,
         maturityDate: newMaturityDate,
         interestRate: newInterestRate,
         roiAmount: newRoi,
         maturityAmount: newMaturityAmount,
+        upfrontPayment: null,
+        clientIntention: null,
+        clientIntentionMessage: null,
+        clientIntentionAt: null,
         status: 'extended',
       },
     }),
@@ -421,60 +429,54 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
   sevenDaysOut.setDate(sevenDaysOut.getDate() + 7);
   sevenDaysOut.setHours(23, 59, 59, 999);
 
+  const fourWeeksOut = new Date(today);
+  fourWeeksOut.setDate(fourWeeksOut.getDate() + 28);
+  fourWeeksOut.setHours(23, 59, 59, 999);
+
   // Next calendar month
   const nextMonthStart = new Date(today.getFullYear(), today.getMonth() + 1, 1);
   const nextMonthEnd = new Date(today.getFullYear(), today.getMonth() + 2, 0, 23, 59, 59, 999);
+
+  // Upfront is due 42 days (6 weeks) after transaction date
+  // "Due today" → transactionDate was exactly 42 days ago
+  const upfrontDueTodayTxStart = new Date(today); upfrontDueTodayTxStart.setDate(today.getDate() - 42);
+  const upfrontDueTodayTxEnd = new Date(todayEnd); upfrontDueTodayTxEnd.setDate(todayEnd.getDate() - 42);
+  // "Due this week" → transactionDate between 42 and 35 days ago (upfront due 0-7 days from now)
+  const upfrontDueWeekTxStart = new Date(today); upfrontDueWeekTxStart.setDate(today.getDate() - 42);
+  const upfrontDueWeekTxEnd = new Date(todayEnd); upfrontDueWeekTxEnd.setDate(todayEnd.getDate() - 35);
 
   const activeStatuses = { in: ['active', 'extended'] as any[] };
   const investmentSelect = {
     id: true, clientName: true, plotNumber: true, principal: true,
     maturityAmount: true, maturityDate: true, status: true, realtorName: true,
   } as const;
+  const upfrontSelect = {
+    id: true, clientName: true, plotNumber: true, principal: true, upfrontPayment: true,
+    maturityAmount: true, transactionDate: true, maturityDate: true, status: true,
+    upfrontPaidAt: true, clientEmail: true,
+  } as const;
 
   const [
-    totalActive,
-    totalCompleted,
-    totalExtended,
-    pendingPayment,
-    maturingThisWeek,
-    overdueInvestments,
-    totalActiveValue,
-    recentInvestments,
-    investmentsToday,
-    urgentInvestments,
-    maturingIn7Days,
-    maturingNextMonth,
+    totalActive, totalCompleted, totalExtended, pendingPayment,
+    maturingThisWeek, overdueInvestments, totalActiveValue,
+    recentInvestments, investmentsToday, urgentInvestments,
+    maturingIn7Days, maturingNextMonth,
+    maturingToday, upfrontDueToday, upfrontDueThisWeek,
+    clientIntentions, maturingIn4WeeksCount,
   ] = await Promise.all([
     prisma.investment.count({ where: { status: 'active' } }),
     prisma.investment.count({ where: { status: 'completed' } }),
     prisma.investment.count({ where: { status: 'extended' } }),
     prisma.investment.count({ where: { status: 'payment_initiated' } }),
-    prisma.investment.count({
-      where: { maturityDate: { gte: today, lte: sevenDaysOut }, status: activeStatuses },
-    }),
-    prisma.investment.count({
-      where: { maturityDate: { lt: today }, status: activeStatuses },
-    }),
-    prisma.investment.aggregate({
-      where: { status: activeStatuses },
-      _sum: { maturityAmount: true },
-    }),
+    prisma.investment.count({ where: { maturityDate: { gte: today, lte: sevenDaysOut }, status: activeStatuses } }),
+    prisma.investment.count({ where: { maturityDate: { lt: today }, status: activeStatuses } }),
+    prisma.investment.aggregate({ where: { status: activeStatuses }, _sum: { maturityAmount: true } }),
+    prisma.investment.findMany({ take: 5, orderBy: { createdAt: 'desc' }, select: investmentSelect }),
     prisma.investment.findMany({
-      take: 5,
-      orderBy: { createdAt: 'desc' },
-      select: investmentSelect,
-    }),
-    prisma.investment.findMany({
-      where: {
-        OR: [
-          { transactionDate: { gte: today, lte: todayEnd } },
-          { maturityDate: { gte: today, lte: todayEnd } },
-        ],
-      },
+      where: { OR: [{ transactionDate: { gte: today, lte: todayEnd } }, { maturityDate: { gte: today, lte: todayEnd } }] },
       orderBy: { maturityDate: 'asc' },
       select: { ...investmentSelect, transactionDate: true },
     }),
-    // Urgent: overdue OR maturing within 3 days OR payment initiated
     prisma.investment.findMany({
       where: {
         OR: [
@@ -483,37 +485,162 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
           { status: 'payment_initiated' },
         ],
       },
-      orderBy: { maturityDate: 'asc' },
-      select: investmentSelect,
+      orderBy: { maturityDate: 'asc' }, select: investmentSelect,
     }),
-    // Maturing within next 7 days
     prisma.investment.findMany({
       where: { maturityDate: { gte: today, lte: sevenDaysOut }, status: activeStatuses },
-      orderBy: { maturityDate: 'asc' },
-      select: investmentSelect,
+      orderBy: { maturityDate: 'asc' }, select: investmentSelect,
     }),
-    // Maturing in the next calendar month
     prisma.investment.findMany({
       where: { maturityDate: { gte: nextMonthStart, lte: nextMonthEnd }, status: activeStatuses },
-      orderBy: { maturityDate: 'asc' },
-      select: investmentSelect,
+      orderBy: { maturityDate: 'asc' }, select: investmentSelect,
+    }),
+    // Maturing exactly today
+    prisma.investment.findMany({
+      where: { maturityDate: { gte: today, lte: todayEnd }, status: activeStatuses },
+      orderBy: { maturityDate: 'asc' }, select: investmentSelect,
+    }),
+    // Upfront due today (transaction was 42 days ago)
+    prisma.investment.findMany({
+      where: {
+        upfrontPayment: { gt: 0 },
+        upfrontPaidAt: null,
+        transactionDate: { gte: upfrontDueTodayTxStart, lte: upfrontDueTodayTxEnd },
+        status: activeStatuses,
+      },
+      orderBy: { transactionDate: 'asc' }, select: upfrontSelect,
+    }),
+    // Upfront due this week (transaction 35–42 days ago)
+    prisma.investment.findMany({
+      where: {
+        upfrontPayment: { gt: 0 },
+        upfrontPaidAt: null,
+        transactionDate: { gte: upfrontDueWeekTxStart, lte: upfrontDueWeekTxEnd },
+        status: activeStatuses,
+      },
+      orderBy: { transactionDate: 'asc' }, select: upfrontSelect,
+    }),
+    // Clients who responded to maturity reminder
+    prisma.investment.findMany({
+      where: { clientIntention: { not: null }, status: activeStatuses },
+      orderBy: { clientIntentionAt: 'desc' },
+      select: {
+        id: true, clientName: true, plotNumber: true, principal: true, maturityAmount: true,
+        maturityDate: true, status: true, clientIntention: true, clientIntentionMessage: true,
+        clientIntentionAt: true,
+      },
+    }),
+    // Count investments maturing in < 4 weeks with email (for send-reminders button)
+    prisma.investment.count({
+      where: {
+        maturityDate: { gte: today, lte: fourWeeksOut },
+        status: activeStatuses,
+        clientEmail: { not: null },
+      },
     }),
   ]);
 
   return res.json({
-    totalActive,
-    totalCompleted,
-    totalExtended,
-    pendingPayment,
-    maturingThisWeek,
-    overdueInvestments,
+    totalActive, totalCompleted, totalExtended, pendingPayment,
+    maturingThisWeek, overdueInvestments,
     totalActiveValue: totalActiveValue._sum.maturityAmount || 0,
-    recentInvestments,
-    investmentsToday,
-    urgentInvestments,
-    maturingIn7Days,
-    maturingNextMonth,
+    recentInvestments, investmentsToday, urgentInvestments,
+    maturingIn7Days, maturingNextMonth,
+    maturingToday, upfrontDueToday, upfrontDueThisWeek,
+    clientIntentions, maturingIn4WeeksCount,
   });
+}
+
+// POST /api/investments/send-maturity-reminders
+export async function sendMaturityReminders(req: AuthRequest, res: Response) {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const fourWeeksOut = new Date(today); fourWeeksOut.setDate(today.getDate() + 28); fourWeeksOut.setHours(23, 59, 59, 999);
+
+  const investments = await prisma.investment.findMany({
+    where: {
+      maturityDate: { gte: today, lte: fourWeeksOut },
+      status: { in: ['active', 'extended'] as any[] },
+      clientEmail: { not: null },
+    },
+  });
+
+  let sent = 0; let failed = 0;
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+  for (const inv of investments) {
+    try {
+      const token = require('crypto').randomUUID();
+      await prisma.investment.update({ where: { id: inv.id }, data: { responseToken: token } });
+      const responseUrl = `${frontendUrl}/investment-response/${token}`;
+      await sendMaturityReminderEmail({
+        clientName: inv.clientName,
+        clientEmail: inv.clientEmail!,
+        realtorEmail: inv.realtorEmail || undefined,
+        plotNumber: inv.plotNumber,
+        principal: Number(inv.principal),
+        maturityAmount: Number(inv.maturityAmount),
+        maturityDate: inv.maturityDate,
+        interestRate: Number(inv.interestRate),
+        responseUrl,
+      });
+      sent++;
+    } catch { failed++; }
+  }
+
+  await createAuditLog({
+    userId: req.user!.id,
+    actionType: 'SEND_MATURITY_REMINDERS',
+    entityType: 'investment',
+    description: `Sent maturity reminder emails: ${sent} sent, ${failed} failed`,
+    req,
+  });
+
+  return res.json({ sent, failed, total: investments.length });
+}
+
+// GET /api/investments/response/:token  — public
+export async function getInvestmentByToken(req: AuthRequest, res: Response) {
+  const { token } = req.params;
+  const inv = await prisma.investment.findUnique({
+    where: { responseToken: token },
+    select: {
+      id: true, clientName: true, plotNumber: true, principal: true,
+      maturityAmount: true, maturityDate: true, duration: true,
+      interestRate: true, roiAmount: true, upfrontPayment: true,
+      clientIntention: true, clientIntentionAt: true,
+    },
+  });
+  if (!inv) return res.status(404).json({ error: 'Invalid or expired link' });
+  return res.json(inv);
+}
+
+// POST /api/investments/response/:token  — public
+export async function submitClientIntention(req: AuthRequest, res: Response) {
+  const { token } = req.params;
+  const { intention, message } = req.body;
+  if (!['extend', 'withdraw', 'partial'].includes(intention)) {
+    return res.status(400).json({ error: 'Invalid intention' });
+  }
+  const inv = await prisma.investment.findUnique({ where: { responseToken: token } });
+  if (!inv) return res.status(404).json({ error: 'Invalid or expired link' });
+
+  await prisma.investment.update({
+    where: { id: inv.id },
+    data: { clientIntention: intention, clientIntentionMessage: message || null, clientIntentionAt: new Date() },
+  });
+  return res.json({ message: 'Response recorded. Thank you!' });
+}
+
+// POST /api/investments/:id/mark-upfront-paid
+export async function markUpfrontPaid(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  await prisma.investment.update({ where: { id }, data: { upfrontPaidAt: new Date() } });
+  await createAuditLog({
+    userId: req.user!.id, actionType: 'MARK_UPFRONT_PAID',
+    entityType: 'investment', entityId: id,
+    description: 'Upfront payment marked as paid', req,
+  });
+  return res.json({ message: 'Upfront marked as paid' });
 }
 
 export async function bulkCreateInvestments(req: AuthRequest, res: Response) {

@@ -86,6 +86,15 @@ export const bulkAPI = {
   duplicates: () => api.get('/investments/duplicates'),
 };
 
+// Maturity response (public)
+export const responseAPI = {
+  getByToken: (token: string) => publicApi.get(`/investments/response/${token}`),
+  submit: (token: string, data: { intention: string; message?: string }) =>
+    publicApi.post(`/investments/response/${token}`, data),
+  sendReminders: () => api.post('/investments/send-maturity-reminders'),
+  markUpfrontPaid: (id: string) => api.post(`/investments/${id}/mark-upfront-paid`),
+};
+
 // Applications (public + admin)
 const publicApi = axios.create({
   baseURL: import.meta.env.VITE_API_URL ? `${import.meta.env.VITE_API_URL}/api` : '/api',
