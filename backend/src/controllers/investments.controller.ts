@@ -161,6 +161,8 @@ export async function createInvestment(req: AuthRequest, res: Response) {
   const roiAmount = calculateROI(principalNum, interestRateNum);
   const maturityAmount = calculateMaturityAmount(principalNum, roiAmount, upfrontNum);
 
+  const isSuperAdmin = req.user!.role === 'super_admin';
+
   const investment = await prisma.investment.create({
     data: {
       transactionDate: txDate,
@@ -176,6 +178,7 @@ export async function createInvestment(req: AuthRequest, res: Response) {
       clientEmail,
       realtorName,
       realtorEmail,
+      status: isSuperAdmin ? 'active' : 'pending_review',
       createdBy: req.user!.id,
     },
     include: { createdByUser: { select: { fullName: true } } },
@@ -191,6 +194,30 @@ export async function createInvestment(req: AuthRequest, res: Response) {
   });
 
   return res.status(201).json({ ...investment, daysUntilMaturity: calculateDaysUntilMaturity(maturityDate) });
+}
+
+// POST /api/investments/:id/approve — super admin approves a pending_review investment
+export async function approveInvestment(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const existing = await prisma.investment.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Investment not found' });
+  if (existing.status !== 'pending_review') return res.status(400).json({ error: 'Investment is not pending review' });
+
+  const updated = await prisma.investment.update({
+    where: { id },
+    data: { status: 'active' },
+  });
+
+  await createAuditLog({
+    userId: req.user!.id,
+    actionType: 'UPDATE_INVESTMENT',
+    entityType: 'investment',
+    entityId: id,
+    description: `Approved investment for ${existing.clientName} — now active`,
+    req,
+  });
+
+  return res.json(updated);
 }
 
 export async function updateInvestment(req: AuthRequest, res: Response) {

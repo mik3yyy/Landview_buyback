@@ -28,6 +28,7 @@ export function formatDateTime(date: string | Date): string {
 
 export function getStatusLabel(status: string): string {
   const map: Record<string, string> = {
+    pending_review: 'Pending Approval',
     active: 'Active',
     completed: 'Completed',
     extended: 'Extended',

@@ -40,6 +40,7 @@ export const investmentsAPI = {
   update: (id: string, data: any) => api.put(`/investments/${id}`, data),
   delete: (id: string) => api.delete(`/investments/${id}`),
   extend: (id: string, data: any) => api.post(`/investments/${id}/extend`, data),
+  approveInvestment: (id: string) => api.post(`/investments/${id}/approve`),
   markPaymentInitiated: (id: string) => api.post(`/investments/${id}/mark-payment-initiated`),
   markPaymentCompleted: (id: string) => api.post(`/investments/${id}/mark-payment-completed`),
   dashboard: () => api.get('/investments/dashboard'),
@@ -108,6 +109,7 @@ export const applicationsAPI = {
   resubmit: (id: string, data: any) => publicApi.put(`/applications/${id}/resubmit`, data),
   list: (params?: Record<string, string>) => api.get('/applications', { params }),
   get: (id: string) => api.get(`/applications/${id}`),
+  review: (id: string) => api.post(`/applications/${id}/review`),
   reject: (id: string, reason: string) => api.post(`/applications/${id}/reject`, { reason }),
   approve: (id: string, data: any) => api.post(`/applications/${id}/approve`, data),
 };

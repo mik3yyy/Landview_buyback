@@ -14,6 +14,7 @@ enum Role {
 }
 
 enum InvestmentStatus {
+  pending_review
   active
   completed
   extended
@@ -45,6 +46,7 @@ enum ActionType {
 
 enum ApplicationStatus {
   pending
+  reviewed
   approved
   rejected
   converted

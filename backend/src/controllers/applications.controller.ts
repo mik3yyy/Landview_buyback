@@ -156,7 +156,41 @@ export async function getApplication(req: AuthRequest, res: Response) {
   return res.json(application);
 }
 
-// POST /api/applications/:id/reject  — admin
+// POST /api/applications/:id/review  — admin marks application as reviewed
+export async function reviewApplication(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  try {
+    const app = await prisma.clientApplication.findUnique({ where: { id } });
+    if (!app) return res.status(404).json({ error: 'Application not found' });
+    if (app.status !== 'pending' && app.status !== 'rejected') {
+      return res.status(400).json({ error: 'Only pending or resubmitted applications can be marked as reviewed' });
+    }
+
+    await prisma.clientApplication.update({
+      where: { id },
+      data: {
+        status: 'reviewed',
+        reviewedBy: req.user!.id,
+        reviewedAt: new Date(),
+      },
+    });
+
+    await createAuditLog({
+      userId: req.user!.id,
+      actionType: 'APPLICATION_APPROVED',
+      entityType: 'application',
+      entityId: id,
+      description: `Marked application for ${app.surname} ${app.otherNames} as reviewed — awaiting super admin approval`,
+    });
+
+    return res.json({ message: 'Application marked as reviewed' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to mark application as reviewed' });
+  }
+}
+
+// POST /api/applications/:id/reject  — super admin only
 export async function rejectApplication(req: AuthRequest, res: Response) {
   const { id } = req.params;
   const { reason } = req.body;

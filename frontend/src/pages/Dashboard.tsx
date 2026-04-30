@@ -51,13 +51,14 @@ interface Stats {
 }
 
 const STATUS_STYLES: Record<string, string> = {
+  pending_review: 'bg-purple-100 text-purple-700',
   active: 'bg-green-100 text-green-700',
   completed: 'bg-gray-100 text-gray-600',
   extended: 'bg-blue-100 text-blue-700',
   payment_initiated: 'bg-orange-100 text-orange-700',
 };
 const STATUS_LABELS: Record<string, string> = {
-  active: 'Active', completed: 'Completed', extended: 'Extended', payment_initiated: 'Payment Initiated',
+  pending_review: 'Pending Approval', active: 'Active', completed: 'Completed', extended: 'Extended', payment_initiated: 'Payment Initiated',
 };
 
 function StatusBadge({ status }: { status: string }) {

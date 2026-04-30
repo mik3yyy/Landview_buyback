@@ -17,6 +17,7 @@ export default function StatusBadge({ status, daysUntilMaturity }: Props) {
   }
 
   const classMap: Record<string, string> = {
+    pending_review: 'bg-purple-100 text-purple-700 text-xs font-medium px-2.5 py-0.5 rounded-full',
     active: 'badge-active',
     completed: 'badge-completed',
     extended: 'badge-extended',

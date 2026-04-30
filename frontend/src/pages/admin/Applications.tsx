@@ -7,13 +7,14 @@ import { useBackgroundFetch } from '../../hooks/useBackgroundFetch';
 import toast from 'react-hot-toast';
 
 const STATUS_STYLES: Record<string, string> = {
-  pending: 'bg-yellow-100 text-yellow-700',
+  pending:  'bg-yellow-100 text-yellow-700',
+  reviewed: 'bg-purple-100 text-purple-700',
   approved: 'bg-green-100 text-green-700',
   rejected: 'bg-red-100 text-red-700',
   converted: 'bg-blue-100 text-blue-700',
 };
 const STATUS_LABELS: Record<string, string> = {
-  pending: 'Pending', approved: 'Approved', rejected: 'Rejected', converted: 'Invested',
+  pending: 'Pending', reviewed: 'Reviewed', approved: 'Approved', rejected: 'Rejected', converted: 'Invested',
 };
 
 export default function Applications() {
@@ -101,7 +102,7 @@ export default function Applications() {
             />
           </div>
           <div className="flex gap-2">
-            {['', 'pending', 'approved', 'rejected', 'converted'].map(s => (
+            {['', 'pending', 'reviewed', 'approved', 'rejected', 'converted'].map(s => (
               <button
                 key={s}
                 onClick={() => updateParam('status', s)}

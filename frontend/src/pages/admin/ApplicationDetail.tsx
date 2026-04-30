@@ -2,12 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, CheckCircle, XCircle, User, Phone, Mail,
-  Home, TrendingUp, CreditCard, Users, FileText, Clock,
+  Home, TrendingUp, CreditCard, Users, FileText, Clock, Eye,
 } from 'lucide-react';
 import { applicationsAPI } from '../../api/client';
 import { formatCurrency } from '../../utils/formatters';
 import Modal from '../../components/ui/Modal';
 import { useBackgroundFetch, invalidateCache } from '../../hooks/useBackgroundFetch';
+import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
 const DURATION_RATES: Record<string, number> = {
@@ -35,15 +36,17 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
 }
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
-  pending: { label: 'Pending Review', color: 'bg-yellow-100 text-yellow-700' },
-  approved: { label: 'Approved', color: 'bg-green-100 text-green-700' },
-  rejected: { label: 'Rejected', color: 'bg-red-100 text-red-700' },
-  converted: { label: 'Converted to Investment', color: 'bg-blue-100 text-blue-700' },
+  pending:  { label: 'Pending Review',          color: 'bg-yellow-100 text-yellow-700' },
+  reviewed: { label: 'Reviewed — Awaiting Approval', color: 'bg-purple-100 text-purple-700' },
+  approved: { label: 'Approved',                color: 'bg-green-100 text-green-700' },
+  rejected: { label: 'Rejected',                color: 'bg-red-100 text-red-700' },
+  converted:{ label: 'Converted to Investment', color: 'bg-blue-100 text-blue-700' },
 };
 
 export default function ApplicationDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isSuperAdmin } = useAuth();
   const [actionLoading, setActionLoading] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
@@ -98,6 +101,21 @@ export default function ApplicationDetail() {
   // Maturity = Principal + remaining profit (profit - upfront already paid)
   const maturityAmount = principalNum + (roi - upfront);
 
+  const handleReview = async () => {
+    setActionLoading(true);
+    try {
+      await applicationsAPI.review(id!);
+      toast.success('Application marked as reviewed — awaiting super admin approval');
+      invalidateCache(`application:${id}`);
+      invalidateCache('applications:');
+      refresh();
+    } catch (e: any) {
+      toast.error(e.response?.data?.error || 'Failed to mark as reviewed');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleReject = async () => {
     setActionLoading(true);
     try {
@@ -141,7 +159,11 @@ export default function ApplicationDetail() {
 
   const statusCfg = STATUS_CONFIG[app.status] ?? STATUS_CONFIG.pending;
   const sourceOfFunds = app.sourceOfFunds ? JSON.parse(app.sourceOfFunds) : [];
-  const canAct = app.status === 'pending' || app.status === 'rejected';
+
+  // Admin (non-super) can mark pending/rejected as reviewed
+  const canReview = !isSuperAdmin && (app.status === 'pending' || app.status === 'rejected');
+  // Super admin can approve/reject reviewed applications (or pending ones directly)
+  const canFinalise = isSuperAdmin && (app.status === 'reviewed' || app.status === 'pending' || app.status === 'rejected');
 
   return (
     <div className="space-y-5 max-w-4xl">
@@ -164,11 +186,25 @@ export default function ApplicationDetail() {
         </div>
       </div>
 
-      {/* Action buttons */}
-      {canAct && (
+      {/* Admin — mark as reviewed */}
+      {canReview && (
+        <div className="flex gap-2 flex-wrap items-center">
+          <button
+            onClick={handleReview}
+            disabled={actionLoading}
+            className="btn-primary flex items-center gap-2 text-sm"
+          >
+            <Eye size={15} /> Mark as Reviewed
+          </button>
+          <p className="text-xs text-gray-400">Review the details above, then mark as reviewed for super admin approval.</p>
+        </div>
+      )}
+
+      {/* Super admin — final approval */}
+      {canFinalise && (
         <div className="flex gap-2 flex-wrap">
           <button onClick={() => setShowApproveModal(true)} className="btn-success flex items-center gap-2 text-sm">
-            <CheckCircle size={15} /> Approve & Create Investment
+            <CheckCircle size={15} /> Approve &amp; Create Investment
           </button>
           <button onClick={() => setShowRejectModal(true)} className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
             <XCircle size={15} /> Reject

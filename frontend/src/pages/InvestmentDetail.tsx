@@ -106,9 +106,23 @@ export default function InvestmentDetail() {
   if (!investment) return <div className="text-center py-20 text-gray-500">Investment not found</div>;
 
   const days = investment.daysUntilMaturity;
+  const isPendingReview = investment.status === 'pending_review';
   const isActive = investment.status === 'active' || investment.status === 'extended';
   const canComplete = isAdminOrAbove && investment.status === 'payment_initiated';
-  const canInitiate = investment.status !== 'completed' && investment.status !== 'payment_initiated';
+  const canInitiate = isActive && investment.status !== 'payment_initiated';
+
+  const handleApproveInvestment = async () => {
+    setActionLoading(true);
+    try {
+      await investmentsAPI.approveInvestment(id!);
+      toast.success('Investment approved and is now active');
+      afterMutation();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to approve');
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -128,34 +142,67 @@ export default function InvestmentDetail() {
           </div>
         </div>
 
-        {/* Action buttons — wrap on mobile */}
-        <div className="flex gap-2 flex-wrap">
-          {canInitiate && (
-            <button onClick={handleMarkPaymentInitiated} disabled={actionLoading} className="btn-primary flex items-center gap-2 text-sm">
-              <CheckCircle size={15} /> <span className="hidden sm:inline">Mark </span>Payment Initiated
-            </button>
-          )}
-          {canComplete && (
-            <button onClick={() => setShowCompleteModal(true)} className="btn-success flex items-center gap-2 text-sm">
-              <CheckCircle size={15} /> Complete Payment
-            </button>
-          )}
-          {investment.status !== 'completed' && (
-            <button onClick={() => setShowExtendModal(true)} className="btn-secondary flex items-center gap-2 text-sm">
-              <RefreshCw size={15} /> Extend
-            </button>
-          )}
-          {isAdminOrAbove && investment.status !== 'completed' && (
-            <Link to={`/investments/${id}/edit`} className="btn-secondary flex items-center gap-2 text-sm">
-              <Edit size={15} /> Edit
-            </Link>
-          )}
-          {isSuperAdmin && (
+        {/* Pending review banner + approve button for super admin */}
+        {isPendingReview && (
+          <div className="flex items-center justify-between gap-3 bg-purple-50 border border-purple-200 rounded-xl px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-purple-800">Pending Super Admin Approval</p>
+              <p className="text-xs text-purple-500 mt-0.5">This investment was submitted by an admin and is awaiting your approval before it becomes active.</p>
+            </div>
+            {isSuperAdmin && (
+              <button
+                onClick={handleApproveInvestment}
+                disabled={actionLoading}
+                className="btn-success flex items-center gap-2 text-sm flex-shrink-0"
+              >
+                <CheckCircle size={15} /> Approve
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* Action buttons — only shown for active investments */}
+        {!isPendingReview && (
+          <div className="flex gap-2 flex-wrap">
+            {canInitiate && (
+              <button onClick={handleMarkPaymentInitiated} disabled={actionLoading} className="btn-primary flex items-center gap-2 text-sm">
+                <CheckCircle size={15} /> <span className="hidden sm:inline">Mark </span>Payment Initiated
+              </button>
+            )}
+            {canComplete && (
+              <button onClick={() => setShowCompleteModal(true)} className="btn-success flex items-center gap-2 text-sm">
+                <CheckCircle size={15} /> Complete Payment
+              </button>
+            )}
+            {investment.status !== 'completed' && (
+              <button onClick={() => setShowExtendModal(true)} className="btn-secondary flex items-center gap-2 text-sm">
+                <RefreshCw size={15} /> Extend
+              </button>
+            )}
+            {isAdminOrAbove && investment.status !== 'completed' && (
+              <Link to={`/investments/${id}/edit`} className="btn-secondary flex items-center gap-2 text-sm">
+                <Edit size={15} /> Edit
+              </Link>
+            )}
+            {isSuperAdmin && (
+              <button onClick={() => setShowDeleteModal(true)} className="btn-danger flex items-center gap-2 text-sm">
+                <Trash2 size={15} />
+              </button>
+            )}
+          </div>
+        )}
+        {isPendingReview && isSuperAdmin && (
+          <div className="flex gap-2">
+            {isAdminOrAbove && (
+              <Link to={`/investments/${id}/edit`} className="btn-secondary flex items-center gap-2 text-sm">
+                <Edit size={15} /> Edit
+              </Link>
+            )}
             <button onClick={() => setShowDeleteModal(true)} className="btn-danger flex items-center gap-2 text-sm">
               <Trash2 size={15} />
             </button>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">

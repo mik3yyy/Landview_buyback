@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import {
-  listInvestments, getInvestment, createInvestment, updateInvestment,
+  listInvestments, getInvestment, createInvestment, updateInvestment, approveInvestment,
   extendInvestment, markPaymentInitiated, markPaymentCompleted,
   deleteInvestment, getDashboardStats, exportInvestments,
   bulkCreateInvestments, findDuplicates,
   sendMaturityReminders, getReminderCandidates, getInvestmentByToken, submitClientIntention, markUpfrontPaid,
 } from '../controllers/investments.controller';
 import { authenticate } from '../middleware/auth.middleware';
-import { isAdminOrAbove, isAnyRole } from '../middleware/rbac.middleware';
+import { isAdminOrAbove, isSuperAdmin, isAnyRole } from '../middleware/rbac.middleware';
 
 const router = Router();
 
@@ -28,6 +28,7 @@ router.get('/:id', isAnyRole, getInvestment);
 router.post('/', isAnyRole, createInvestment);
 router.put('/:id', isAdminOrAbove, updateInvestment);
 router.delete('/:id', isAdminOrAbove, deleteInvestment);
+router.post('/:id/approve', isSuperAdmin, approveInvestment);
 router.post('/:id/extend', isAnyRole, extendInvestment);
 router.post('/:id/mark-payment-initiated', isAnyRole, markPaymentInitiated);
 router.post('/:id/mark-payment-completed', isAdminOrAbove, markPaymentCompleted);
