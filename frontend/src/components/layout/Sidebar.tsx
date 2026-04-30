@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, PlusCircle,
@@ -28,6 +28,7 @@ const adminNavItems = [
 
 export default function Sidebar({ onClose }: Props) {
   const { user, logout, isSuperAdmin, isAdminOrAbove } = useAuth();
+  const [confirmingLogout, setConfirmingLogout] = useState(false);
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
@@ -92,13 +93,33 @@ export default function Sidebar({ onClose }: Props) {
 
       {/* Logout */}
       <div className="px-3 py-4 border-t border-blue-800">
-        <button
-          onClick={logout}
-          className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-blue-800 hover:text-white transition-colors w-full"
-        >
-          <LogOut size={20} />
-          Logout
-        </button>
+        {confirmingLogout ? (
+          <div className="bg-blue-900 rounded-lg px-3 py-3 space-y-2">
+            <p className="text-sm text-blue-100 font-medium">Are you sure you want to logout?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={logout}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors"
+              >
+                Yes, logout
+              </button>
+              <button
+                onClick={() => setConfirmingLogout(false)}
+                className="flex-1 bg-blue-700 hover:bg-blue-600 text-blue-100 text-xs font-semibold py-1.5 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirmingLogout(true)}
+            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium text-blue-100 hover:bg-blue-800 hover:text-white transition-colors w-full"
+          >
+            <LogOut size={20} />
+            Logout
+          </button>
+        )}
       </div>
     </div>
   );
