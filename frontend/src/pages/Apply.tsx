@@ -173,9 +173,26 @@ export default function Apply() {
       if (!form.otherNames.trim()) { toast.error('Other names are required'); return false; }
       if (!form.phoneNumber.trim()) { toast.error('Phone number is required'); return false; }
     }
+    if (step === 2) {
+      if (!form.correspondenceAddress.trim()) { toast.error('Correspondence address is required'); return false; }
+      if (!form.correspondenceCity.trim()) { toast.error('City is required'); return false; }
+      if (!form.correspondenceState.trim()) { toast.error('State is required'); return false; }
+    }
+    if (step === 3) {
+      if (!form.nextOfKinName.trim()) { toast.error('Next of kin name is required'); return false; }
+      if (!form.nextOfKinPhone.trim()) { toast.error('Next of kin phone number is required'); return false; }
+    }
     if (step === 4) {
       if (!form.principal || parseFloat(form.principal) <= 0) { toast.error('Enter a valid principal amount'); return false; }
       if (parseFloat(form.principal) < 1000000) { toast.error('Minimum investment is ₦1,000,000'); return false; }
+    }
+    if (step === 5) {
+      if (!form.realtorName.trim()) { toast.error('Realtor name is required'); return false; }
+      if (form.paymentMode === 'transfer') {
+        if (!form.accountName.trim()) { toast.error('Account name is required for bank transfer'); return false; }
+        if (!form.accountNumber.trim()) { toast.error('Account number is required for bank transfer'); return false; }
+        if (!form.bankName.trim()) { toast.error('Bank name is required for bank transfer'); return false; }
+      }
     }
     if (step === 6) {
       if (!form.agreedToTerms) { toast.error('You must agree to the terms'); return false; }
@@ -317,10 +334,10 @@ export default function Apply() {
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-gray-900">Address Information</h2>
               <p className="text-sm text-gray-500">Correspondence address (where we'll send documents)</p>
-              <Field label="Address"><input type="text" {...inp('correspondenceAddress')} /></Field>
+              <Field label="Address" required><input type="text" {...inp('correspondenceAddress')} /></Field>
               <div className="grid grid-cols-2 gap-4">
-                <Field label="City"><input type="text" {...inp('correspondenceCity')} /></Field>
-                <Field label="State"><input type="text" {...inp('correspondenceState')} /></Field>
+                <Field label="City" required><input type="text" {...inp('correspondenceCity')} /></Field>
+                <Field label="State" required><input type="text" {...inp('correspondenceState')} /></Field>
               </div>
               <div className="mt-4 pt-4 border-t">
                 <label className="flex items-center gap-2 cursor-pointer">
@@ -348,9 +365,9 @@ export default function Apply() {
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-gray-900">Next of Kin</h2>
               <p className="text-sm text-gray-500">Emergency contact information</p>
-              <Field label="Full Name"><input type="text" {...inp('nextOfKinName')} /></Field>
+              <Field label="Full Name" required><input type="text" {...inp('nextOfKinName')} /></Field>
               <Field label="Email"><input type="email" {...inp('nextOfKinEmail')} /></Field>
-              <Field label="Phone Number"><input type="tel" {...inp('nextOfKinPhone')} /></Field>
+              <Field label="Phone Number" required><input type="tel" {...inp('nextOfKinPhone')} /></Field>
             </div>
           )}
 
@@ -431,16 +448,29 @@ export default function Apply() {
               {form.paymentMode === 'transfer' && (
                 <div className="space-y-3 border rounded-xl p-4 bg-gray-50">
                   <p className="text-sm font-medium text-gray-700">Bank Account Details</p>
-                  <Field label="Account Name"><input type="text" {...inp('accountName')} /></Field>
-                  <Field label="Account Number"><input type="text" {...inp('accountNumber')} maxLength={10} /></Field>
-                  <Field label="Bank Name"><input type="text" {...inp('bankName')} /></Field>
+                  <Field label="Account Name" required><input type="text" {...inp('accountName')} /></Field>
+                  <Field label="Account Number" required><input type="text" {...inp('accountNumber')} maxLength={10} /></Field>
+                  <Field label="Bank Name" required><input type="text" {...inp('bankName')} /></Field>
                 </div>
               )}
 
               <div className="border-t pt-4">
-                <p className="text-sm font-medium text-gray-700 mb-3">Realtor / Agent Information (if referred)</p>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-medium text-gray-700">Realtor / Agent Information <span className="text-red-500">*</span></p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      set('realtorName', `${form.title ? form.title + ' ' : ''}${form.surname} ${form.otherNames}`.trim());
+                      set('realtorEmail', form.clientEmail);
+                      set('realtorPhone', form.phoneNumber);
+                    }}
+                    className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium px-3 py-1.5 rounded-lg border border-blue-200 transition-colors"
+                  >
+                    Same as Client
+                  </button>
+                </div>
                 <div className="space-y-3">
-                  <Field label="Realtor Name"><input type="text" {...inp('realtorName')} /></Field>
+                  <Field label="Realtor Name" required><input type="text" {...inp('realtorName')} /></Field>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <Field label="Realtor Email"><input type="email" {...inp('realtorEmail')} /></Field>
                     <Field label="Realtor Phone"><input type="tel" {...inp('realtorPhone')} /></Field>

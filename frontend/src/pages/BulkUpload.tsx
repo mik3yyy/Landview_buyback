@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import * as XLSX from 'xlsx';
-import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, X, Loader2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, CheckCircle, AlertCircle, AlertTriangle, X, Loader2 } from 'lucide-react';
 import { bulkAPI } from '../api/client';
 import { formatCurrency } from '../utils/formatters';
 import toast from 'react-hot-toast';
@@ -18,6 +18,7 @@ interface ParsedRow {
   realtorName: string;
   realtorEmail: string;
   error?: string;
+  upfrontWarning?: string;
 }
 
 function findHeaderRow(rows: any[][]): number {
@@ -76,16 +77,34 @@ function parseRows(rows: any[][], colMap: Record<string, number>, headerIdx: num
     const realtorEmailRaw = String(row[colMap.realtorEmail] ?? '').trim();
     const realtorEmail = realtorEmailRaw.toLowerCase() === 'same' ? clientEmail : realtorEmailRaw;
 
+    const principalVal = parseFloat(row[colMap.principal]) || 0;
+    const rateVal = parseFloat(row[colMap.interestRate]) || 0;
+
+    // Compute upfront: nil/empty → no upfront; any value → our formula (50% of ROI)
+    let upfrontPayment: number | null = null;
+    let upfrontWarning: string | undefined;
+    const rawUpfront = colMap.upfrontPayment !== undefined ? row[colMap.upfrontPayment] : undefined;
+    if (rawUpfront != null && rawUpfront !== '') {
+      const excelUpfront = parseFloat(rawUpfront);
+      if (!isNaN(excelUpfront) && excelUpfront > 0) {
+        const ourUpfront = (principalVal * rateVal / 100) * 0.5;
+        upfrontPayment = ourUpfront;
+        if (ourUpfront > 0 && Math.abs(excelUpfront - ourUpfront) / ourUpfront > 0.01) {
+          upfrontWarning = `Sheet: ₦${excelUpfront.toLocaleString()} → using ₦${ourUpfront.toLocaleString()}`;
+        }
+      }
+    }
+
     const parsed: ParsedRow = {
       rowNum: i + 1,
       transactionDate: excelDateToISO(row[colMap.transactionDate]),
       clientName: String(clientNameVal).trim(),
       plotNumber: String(row[colMap.plotNumber] ?? '').trim(),
       duration: String(row[colMap.duration] ?? '').trim(),
-      principal: parseFloat(row[colMap.principal]) || 0,
-      interestRate: parseFloat(row[colMap.interestRate]) || 0,
-      upfrontPayment: row[colMap.upfrontPayment] != null && row[colMap.upfrontPayment] !== ''
-        ? parseFloat(row[colMap.upfrontPayment]) : null,
+      principal: principalVal,
+      interestRate: rateVal,
+      upfrontPayment,
+      upfrontWarning,
       clientEmail,
       realtorName: String(row[colMap.realtorName] ?? '').trim(),
       realtorEmail,
@@ -281,6 +300,16 @@ export default function BulkUpload() {
             </div>
           </div>
 
+          {/* Upfront mismatch notice */}
+          {rows.some(r => r.upfrontWarning) && (
+            <div className="flex items-start gap-2 bg-yellow-50 border border-yellow-200 rounded-lg px-4 py-3 text-sm text-yellow-800">
+              <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+              <span>
+                <strong>Upfront mismatch detected</strong> on some rows — the sheet value differs from our calculation (50% of ROI). Our calculated values will be used. Hover the <AlertTriangle size={11} className="inline text-yellow-500" /> icon to see the difference.
+              </span>
+            </div>
+          )}
+
           {/* Table */}
           <div className="card p-0 overflow-hidden">
             <div className="overflow-x-auto">
@@ -314,7 +343,18 @@ export default function BulkUpload() {
                       <td className="px-3 py-2 whitespace-nowrap">{row.duration}</td>
                       <td className="px-3 py-2 whitespace-nowrap">{row.principal ? formatCurrency(row.principal) : '—'}</td>
                       <td className="px-3 py-2">{row.interestRate || '—'}%</td>
-                      <td className="px-3 py-2">{row.upfrontPayment ? formatCurrency(row.upfrontPayment) : '—'}</td>
+                      <td className="px-3 py-2">
+                        {row.upfrontPayment ? (
+                          <span className="flex items-center gap-1">
+                            {formatCurrency(row.upfrontPayment)}
+                            {row.upfrontWarning && (
+                              <span title={`Mismatch: ${row.upfrontWarning}`}>
+                                <AlertTriangle size={12} className="text-yellow-500 flex-shrink-0" />
+                              </span>
+                            )}
+                          </span>
+                        ) : '—'}
+                      </td>
                       <td className="px-3 py-2 whitespace-nowrap">{row.realtorName}</td>
                       <td className="px-3 py-2 text-gray-500 max-w-[160px] truncate">{row.realtorEmail}</td>
                     </tr>

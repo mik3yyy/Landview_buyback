@@ -10,7 +10,7 @@ interface FormData {
   duration: string;
   principal: string;
   interestRate: string;
-  upfrontPayment: string;
+  upfrontPayment?: string;
   clientEmail: string;
   realtorName: string;
   realtorEmail: string;
@@ -36,19 +36,22 @@ export default function InvestmentForm({ initialData, investmentId, onSuccess, o
     duration: '6 months',
     principal: '',
     interestRate: '15',
-    upfrontPayment: '',
     clientEmail: '',
     realtorName: '',
     realtorEmail: '',
     ...initialData,
   });
+  const [wantsUpfront, setWantsUpfront] = useState(() => {
+    const up = parseFloat(initialData?.upfrontPayment || '0');
+    return up > 0;
+  });
   const [loading, setLoading] = useState(false);
 
   const principal = parseFloat(form.principal) || 0;
   const interestRate = parseFloat(form.interestRate) || 0;
-  const upfront = parseFloat(form.upfrontPayment) || 0;
   const roi = principal * (interestRate / 100);
-  const maturityAmount = principal + roi - upfront;
+  const calculatedUpfront = wantsUpfront ? roi * 0.5 : 0;
+  const maturityAmount = principal + roi - calculatedUpfront;
 
   const calcMaturityDate = () => {
     if (!form.transactionDate || !form.duration) return '';
@@ -73,9 +76,10 @@ export default function InvestmentForm({ initialData, investmentId, onSuccess, o
     }
     setLoading(true);
     try {
+      const payload = { ...form, upfrontPayment: wantsUpfront ? String(calculatedUpfront) : '' };
       const res = investmentId
-        ? await investmentsAPI.update(investmentId, form)
-        : await investmentsAPI.create(form);
+        ? await investmentsAPI.update(investmentId, payload)
+        : await investmentsAPI.create(payload);
       toast.success(investmentId ? 'Investment updated!' : 'Investment created!');
       onSuccess(res.data);
     } catch (err: any) {
@@ -89,13 +93,19 @@ export default function InvestmentForm({ initialData, investmentId, onSuccess, o
     <form onSubmit={handleSubmit} className="space-y-5">
       {/* Auto-calculated preview */}
       {principal > 0 && (
-        <div className="bg-blue-50 rounded-lg p-4 grid grid-cols-3 gap-4 text-sm">
+        <div className={`bg-blue-50 rounded-lg p-4 text-sm grid gap-4 ${wantsUpfront ? 'grid-cols-4' : 'grid-cols-3'}`}>
           <div>
             <div className="text-blue-600 font-medium">ROI Amount</div>
             <div className="font-bold text-blue-900">{formatCurrency(roi)}</div>
           </div>
+          {wantsUpfront && (
+            <div>
+              <div className="text-orange-600 font-medium">Upfront (after 6 wks)</div>
+              <div className="font-bold text-orange-700">{formatCurrency(calculatedUpfront)}</div>
+            </div>
+          )}
           <div>
-            <div className="text-blue-600 font-medium">Maturity Amount</div>
+            <div className="text-blue-600 font-medium">Amount at Maturity</div>
             <div className="font-bold text-blue-900">{formatCurrency(maturityAmount)}</div>
           </div>
           <div>
@@ -160,7 +170,7 @@ export default function InvestmentForm({ initialData, investmentId, onSuccess, o
         <input type="text" className="input" placeholder="e.g. PLT-001A or 500sqm" value={form.plotNumber} onChange={set('plotNumber')} required />
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="label">Principal Amount (₦) *</label>
           <input type="number" className="input" placeholder="5000000" min="0" value={form.principal} onChange={set('principal')} required />
@@ -169,10 +179,32 @@ export default function InvestmentForm({ initialData, investmentId, onSuccess, o
           <label className="label">Interest Rate (%) *</label>
           <input type="number" className="input" placeholder="15" min="0" max="100" step="0.01" value={form.interestRate} onChange={set('interestRate')} required />
         </div>
-        <div>
-          <label className="label">Upfront Payment (₦)</label>
-          <input type="number" className="input" placeholder="0" min="0" value={form.upfrontPayment} onChange={set('upfrontPayment')} />
+      </div>
+
+      <div className="border rounded-xl p-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <div className="text-sm font-medium text-gray-800">Upfront Payment</div>
+            <div className="text-xs text-gray-500 mt-0.5">50% of profit paid after 6 weeks</div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setWantsUpfront(w => !w)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors border ${
+              wantsUpfront
+                ? 'bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200'
+                : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
+            }`}
+          >
+            {wantsUpfront ? 'Yes — With Upfront' : 'No Upfront'}
+          </button>
         </div>
+        {wantsUpfront && principal > 0 && (
+          <div className="mt-3 pt-3 border-t text-sm text-orange-700">
+            Upfront amount: <strong>{formatCurrency(calculatedUpfront)}</strong>
+            <span className="text-gray-400 ml-2">· Amount at maturity: {formatCurrency(maturityAmount)}</span>
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 gap-4">

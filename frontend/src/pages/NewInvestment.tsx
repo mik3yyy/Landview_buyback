@@ -58,6 +58,7 @@ export default function NewInvestment() {
       const data = res.data.extracted_data;
       setExtracted(data);
       setDocumentUrl(res.data.document_url);
+      setAiWantsUpfront(!!(data.upfrontPayment && data.upfrontPayment > 0));
       setAiForm({
         clientName: data.clientName || '',
         plotNumber: data.plotNumber || '',
@@ -68,7 +69,6 @@ export default function NewInvestment() {
         clientEmail: data.clientEmail || '',
         realtorName: data.realtorName || '',
         realtorEmail: data.realtorEmail || '',
-        upfrontPayment: data.upfrontPayment ? String(data.upfrontPayment) : '',
       });
       toast.success('Document extracted! Please review the data.');
     } catch (err: any) {
@@ -82,7 +82,11 @@ export default function NewInvestment() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await investmentsAPI.create({ ...aiForm, documentUrl });
+      const res = await investmentsAPI.create({
+        ...aiForm,
+        documentUrl,
+        upfrontPayment: aiWantsUpfront ? String(aiCalculatedUpfront) : '',
+      });
       toast.success('Investment created from document!');
       navigate(`/investments/${res.data.id}`);
     } catch (err: any) {
@@ -95,13 +99,15 @@ export default function NewInvestment() {
   const setAiField = (key: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setAiForm(prev => ({ ...prev, [key]: e.target.value }));
 
+  const [aiWantsUpfront, setAiWantsUpfront] = useState(false);
+
   const principal = parseFloat(aiForm.principal) || 0;
   const interestRate = parseFloat(aiForm.interestRate) || 0;
   const roi = principal * (interestRate / 100);
-  const upfront = parseFloat(aiForm.upfrontPayment) || 0;
-  const maturityAmount = principal + roi - upfront;
+  const aiCalculatedUpfront = aiWantsUpfront ? roi * 0.5 : 0;
+  const maturityAmount = principal + roi - aiCalculatedUpfront;
 
-  const resetAi = () => { setFile(null); setExtracted(null); setAiForm({}); };
+  const resetAi = () => { setFile(null); setExtracted(null); setAiForm({}); setAiWantsUpfront(false); };
 
   return (
     <div className="max-w-3xl space-y-5">
@@ -213,9 +219,12 @@ export default function NewInvestment() {
               </div>
 
               {principal > 0 && (
-                <div className="bg-blue-50 rounded-lg p-4 grid grid-cols-3 gap-4 text-sm mb-5">
+                <div className={`bg-blue-50 rounded-lg p-4 text-sm mb-5 grid gap-4 ${aiWantsUpfront ? 'grid-cols-4' : 'grid-cols-3'}`}>
                   <div><div className="text-blue-600 font-medium">ROI</div><div className="font-bold text-blue-900">{formatCurrency(roi)}</div></div>
-                  <div><div className="text-blue-600 font-medium">Maturity Amount</div><div className="font-bold text-blue-900">{formatCurrency(maturityAmount)}</div></div>
+                  {aiWantsUpfront && (
+                    <div><div className="text-orange-600 font-medium">Upfront (after 6 wks)</div><div className="font-bold text-orange-700">{formatCurrency(aiCalculatedUpfront)}</div></div>
+                  )}
+                  <div><div className="text-blue-600 font-medium">Amount at Maturity</div><div className="font-bold text-blue-900">{formatCurrency(maturityAmount)}</div></div>
                   <div><div className="text-blue-600 font-medium">Interest Rate</div><div className="font-bold text-blue-900">{interestRate}%</div></div>
                 </div>
               )}
@@ -245,7 +254,7 @@ export default function NewInvestment() {
                   <label className="label flex items-center">Plot Number <ConfidenceDot score={extracted.confidence?.plotNumber} /></label>
                   <input type="text" className="input" value={aiForm.plotNumber} onChange={setAiField('plotNumber')} required />
                 </div>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="label flex items-center">Principal (₦) <ConfidenceDot score={extracted.confidence?.principal} /></label>
                     <input type="number" className="input" value={aiForm.principal} onChange={setAiField('principal')} required />
@@ -254,10 +263,33 @@ export default function NewInvestment() {
                     <label className="label flex items-center">Interest Rate (%) <ConfidenceDot score={extracted.confidence?.interestRate} /></label>
                     <input type="number" className="input" value={aiForm.interestRate} onChange={setAiField('interestRate')} step="0.01" required />
                   </div>
-                  <div>
-                    <label className="label flex items-center">Upfront Payment (₦) <ConfidenceDot score={extracted.confidence?.upfrontPayment} /></label>
-                    <input type="number" className="input" value={aiForm.upfrontPayment} onChange={setAiField('upfrontPayment')} />
+                </div>
+                <div className="border rounded-xl p-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-sm font-medium text-gray-800 flex items-center gap-1">
+                        Upfront Payment <ConfidenceDot score={extracted.confidence?.upfrontPayment} />
+                      </div>
+                      <div className="text-xs text-gray-500 mt-0.5">50% of profit paid after 6 weeks</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAiWantsUpfront(w => !w)}
+                      className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors border ${
+                        aiWantsUpfront
+                          ? 'bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200'
+                          : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
+                      }`}
+                    >
+                      {aiWantsUpfront ? 'Yes — With Upfront' : 'No Upfront'}
+                    </button>
                   </div>
+                  {aiWantsUpfront && principal > 0 && (
+                    <div className="mt-2 pt-2 border-t text-sm text-orange-700">
+                      Upfront: <strong>{formatCurrency(aiCalculatedUpfront)}</strong>
+                      <span className="text-gray-400 ml-2">· At maturity: {formatCurrency(maturityAmount)}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>

@@ -62,7 +62,7 @@ export default function ApplicationDetail() {
     duration: '',
     principal: '',
     interestRate: '',
-    upfrontPayment: '',
+    wantsUpfront: false,
   });
 
   const { data: app, loading, refreshing, error, refresh } = useBackgroundFetch<any>(
@@ -78,10 +78,6 @@ export default function ApplicationDetail() {
   useEffect(() => {
     if (!app) return;
     const rate = DURATION_RATES[app.duration] ?? 20;
-    const principalVal = Number(app.principal);
-    const roiVal = principalVal * (rate / 100);
-    // If client chose upfront, pre-fill as 50% of profit
-    const upfrontVal = app.wantsUpfront ? roiVal * 0.5 : 0;
     setApproveForm(f => ({
       ...f,
       clientName: `${app.title ? app.title + ' ' : ''}${app.surname} ${app.otherNames}`,
@@ -90,15 +86,14 @@ export default function ApplicationDetail() {
       duration: app.duration,
       principal: String(app.principal),
       interestRate: String(rate),
-      upfrontPayment: upfrontVal > 0 ? String(upfrontVal) : '',
+      wantsUpfront: app.wantsUpfront || false,
     }));
   }, [app]);
 
   const principalNum = parseFloat(approveForm.principal) || 0;
   const rateNum = parseFloat(approveForm.interestRate) || 0;
   const roi = principalNum * (rateNum / 100);
-  const upfront = parseFloat(approveForm.upfrontPayment) || 0;
-  // Maturity = Principal + remaining profit (profit - upfront already paid)
+  const upfront = approveForm.wantsUpfront ? roi * 0.5 : 0;
   const maturityAmount = principalNum + (roi - upfront);
 
   const handleReview = async () => {
@@ -137,7 +132,11 @@ export default function ApplicationDetail() {
     if (!approveForm.transactionDate) { toast.error('Transaction date is required'); return; }
     setActionLoading(true);
     try {
-      const res = await applicationsAPI.approve(id!, approveForm);
+      const payload = {
+        ...approveForm,
+        upfrontPayment: approveForm.wantsUpfront ? String(upfront) : '',
+      };
+      const res = await applicationsAPI.approve(id!, payload);
       toast.success('Application approved! Investment created.');
       setShowApproveModal(false);
       invalidateCache(`application:${id}`);
@@ -386,36 +385,36 @@ export default function ApplicationDetail() {
             </div>
           </div>
 
-          {app.wantsUpfront && (
-            <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 text-xs text-orange-700">
-              Client requested upfront payment — 50% of profit will be paid after 6 weeks.
-              Pre-filled below. Adjust if needed.
-            </div>
-          )}
+          <div>
+            <label className="label">Principal (₦)</label>
+            <input type="number" className="input" value={approveForm.principal}
+              onChange={e => setApproveForm(f => ({ ...f, principal: e.target.value }))} />
+          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Principal (₦)</label>
-              <input type="number" className="input" value={approveForm.principal}
-                onChange={e => {
-                  const p = parseFloat(e.target.value) || 0;
-                  const r = parseFloat(approveForm.interestRate) || 0;
-                  const roiCalc = p * (r / 100);
-                  setApproveForm(f => ({
-                    ...f,
-                    principal: e.target.value,
-                    upfrontPayment: app.wantsUpfront && roiCalc > 0 ? String(roiCalc * 0.5) : f.upfrontPayment,
-                  }));
-                }} />
+          <div className="border rounded-xl p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-medium text-gray-800">Upfront Payment</div>
+                <div className="text-xs text-gray-500 mt-0.5">50% of profit paid after 6 weeks</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setApproveForm(f => ({ ...f, wantsUpfront: !f.wantsUpfront }))}
+                className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors border ${
+                  approveForm.wantsUpfront
+                    ? 'bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200'
+                    : 'bg-gray-100 text-gray-500 border-gray-200 hover:bg-gray-200'
+                }`}
+              >
+                {approveForm.wantsUpfront ? 'Yes — With Upfront' : 'No Upfront'}
+              </button>
             </div>
-            <div>
-              <label className="label">
-                Upfront Payment (₦)
-                {app.wantsUpfront ? ' — 50% of profit' : ' — optional'}
-              </label>
-              <input type="number" className="input" value={approveForm.upfrontPayment} placeholder="0"
-                onChange={e => setApproveForm(f => ({ ...f, upfrontPayment: e.target.value }))} />
-            </div>
+            {approveForm.wantsUpfront && principalNum > 0 && (
+              <div className="mt-2 pt-2 border-t text-sm text-orange-700">
+                Upfront: <strong>{formatCurrency(upfront)}</strong>
+                <span className="text-gray-400 ml-2">· At maturity: {formatCurrency(maturityAmount)}</span>
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">
