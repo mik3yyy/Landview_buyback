@@ -658,7 +658,11 @@ export async function sendMaturityReminders(req: AuthRequest, res: Response) {
         responseUrl,
       });
       sent++;
-    } catch { failed++; }
+    } catch (err: any) {
+      failed++;
+      const sgError = err?.response?.body?.errors?.[0]?.message || err?.message || String(err);
+      console.error(`[Email] Failed for investment ${inv.id} (${inv.clientEmail}):`, sgError);
+    }
   }
 
   await createAuditLog({

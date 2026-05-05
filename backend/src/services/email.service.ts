@@ -1,9 +1,14 @@
-import sgMail from '@sendgrid/mail';
+import nodemailer from 'nodemailer';
 
-sgMail.setApiKey(process.env.SENDGRID_API_KEY || '');
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.GMAIL_USER,
+    pass: process.env.GMAIL_APP_PASSWORD,
+  },
+});
 
-const FROM_EMAIL = process.env.FROM_EMAIL || 'noreply@landview.com';
-const FROM_NAME = 'Landview Buyback';
+const FROM = `Landview Buyback <${process.env.GMAIL_USER}>`;
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
@@ -12,6 +17,21 @@ function formatCurrency(amount: number): string {
 function formatDate(date: Date): string {
   return new Date(date).toLocaleDateString('en-GB', {
     day: '2-digit', month: 'long', year: 'numeric',
+  });
+}
+
+async function send(payload: {
+  to: string | string[];
+  cc?: string;
+  subject: string;
+  html: string;
+}): Promise<void> {
+  await transporter.sendMail({
+    from: FROM,
+    to: payload.to,
+    ...(payload.cc ? { cc: payload.cc } : {}),
+    subject: payload.subject,
+    html: payload.html,
   });
 }
 
@@ -69,14 +89,12 @@ export async function sendMaturityReminderEmail(data: {
     </div>
   `;
 
-  const msg: any = {
+  await send({
     to: data.clientEmail,
-    from: { email: FROM_EMAIL, name: FROM_NAME },
+    ...(data.realtorEmail ? { cc: data.realtorEmail } : {}),
     subject: `Action Required: Your Investment Matures in ${daysLeft} Day${daysLeft !== 1 ? 's' : ''} — Plot ${data.plotNumber}`,
     html,
-  };
-  if (data.realtorEmail) msg.cc = data.realtorEmail;
-  await sgMail.send(msg);
+  });
 }
 
 export async function sendMaturityNotification(data: InvestmentEmailData): Promise<void> {
@@ -102,15 +120,12 @@ export async function sendMaturityNotification(data: InvestmentEmailData): Promi
     </div>
   `;
 
-  const msg: any = {
+  await send({
     to: data.clientEmail,
-    from: { email: FROM_EMAIL, name: FROM_NAME },
+    ...(data.realtorEmail ? { cc: data.realtorEmail } : {}),
     subject: `Investment Maturity Notice - Plot ${data.plotNumber}`,
     html,
-  };
-  if (data.realtorEmail) msg.cc = data.realtorEmail;
-
-  await sgMail.send(msg);
+  });
 }
 
 export async function sendExtensionConfirmation(data: {
@@ -142,9 +157,8 @@ export async function sendExtensionConfirmation(data: {
     </div>
   `;
 
-  await sgMail.send({
+  await send({
     to: data.clientEmail,
-    from: { email: FROM_EMAIL, name: FROM_NAME },
     subject: `Investment Extension Confirmed - Plot ${data.plotNumber}`,
     html,
   });
@@ -176,9 +190,8 @@ export async function sendPaymentCompletion(data: {
     </div>
   `;
 
-  await sgMail.send({
+  await send({
     to: data.clientEmail,
-    from: { email: FROM_EMAIL, name: FROM_NAME },
     subject: `Payment Completed - Plot ${data.plotNumber}`,
     html,
   });
@@ -219,9 +232,8 @@ export async function sendDailyPaymentDueList(superAdminEmails: string[], invest
     </div>
   `;
 
-  await sgMail.send({
+  await send({
     to: superAdminEmails,
-    from: { email: FROM_EMAIL, name: FROM_NAME },
     subject: `Daily Payment Due List - ${investments.length} Investment(s) Maturing Today`,
     html,
   });
@@ -262,9 +274,8 @@ export async function sendWeeklyReminder(adminEmails: string[], maturingThisWeek
     </div>
   `;
 
-  await sgMail.send({
+  await send({
     to: adminEmails,
-    from: { email: FROM_EMAIL, name: FROM_NAME },
     subject: `Weekly Investment Summary - ${maturingThisWeek.length} Maturing This Week`,
     html,
   });
