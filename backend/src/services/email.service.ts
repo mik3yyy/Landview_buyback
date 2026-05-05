@@ -35,22 +35,16 @@ async function send(payload: {
     body.cc = [{ email: payload.cc }];
   }
 
-  console.log('[Brevo] Sending to:', Array.isArray(payload.to) ? payload.to.join(', ') : payload.to);
-  console.log('[Brevo] API key present:', !!BREVO_API_KEY, '| length:', BREVO_API_KEY.length);
-  console.log('[Brevo] Sender:', SENDER_EMAIL);
-
   try {
-    const res = await axios.post('https://api.brevo.com/v3/smtp/email', body, {
+    await axios.post('https://api.brevo.com/v3/smtp/email', body, {
       headers: {
         'api-key': BREVO_API_KEY,
         'Content-Type': 'application/json',
       },
     });
-    console.log('[Brevo] Success:', res.status, res.data);
   } catch (err: any) {
-    console.error('[Brevo] Error status:', err?.response?.status);
-    console.error('[Brevo] Error body:', JSON.stringify(err?.response?.data));
-    throw err;
+    const detail = err?.response?.data?.message || err?.message || String(err);
+    throw new Error(detail);
   }
 }
 

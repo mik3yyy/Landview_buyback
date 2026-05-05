@@ -638,8 +638,6 @@ export async function sendMaturityReminders(req: AuthRequest, res: Response) {
 
   const investments = await prisma.investment.findMany({ where: whereClause });
 
-  console.log(`[Reminders] Found ${investments.length} investment(s) to email`);
-
   let sent = 0;
   const errors: string[] = [];
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
