@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   ArrowLeft, Edit, TrendingUp, Calendar, Clock, User,
-  Mail, Home, CheckCircle, RefreshCw, Trash2, FileText
+  Mail, Home, CheckCircle, RefreshCw, Trash2, FileText, MessageSquare
 } from 'lucide-react';
 import { investmentsAPI } from '../api/client';
 import { formatCurrency, formatDate, formatDateTime, getDaysLabel } from '../utils/formatters';
@@ -204,6 +204,47 @@ export default function InvestmentDetail() {
           </div>
         )}
       </div>
+
+      {/* Client Intention Banner */}
+      {investment.clientIntention && (
+        <div className={`rounded-xl border-2 px-5 py-4 flex items-start gap-4 ${
+          investment.clientIntention === 'extend'
+            ? 'bg-blue-50 border-blue-300'
+            : investment.clientIntention === 'partial'
+            ? 'bg-orange-50 border-orange-300'
+            : 'bg-green-50 border-green-300'
+        }`}>
+          <MessageSquare size={22} className={
+            investment.clientIntention === 'extend' ? 'text-blue-500 flex-shrink-0 mt-0.5' :
+            investment.clientIntention === 'partial' ? 'text-orange-500 flex-shrink-0 mt-0.5' :
+            'text-green-500 flex-shrink-0 mt-0.5'
+          } />
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center gap-2 mb-1">
+              <span className={`text-sm font-bold uppercase tracking-wide ${
+                investment.clientIntention === 'extend' ? 'text-blue-700' :
+                investment.clientIntention === 'partial' ? 'text-orange-700' :
+                'text-green-700'
+              }`}>Client Response Received</span>
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                investment.clientIntention === 'extend' ? 'bg-blue-200 text-blue-800' :
+                investment.clientIntention === 'partial' ? 'bg-orange-200 text-orange-800' :
+                'bg-green-200 text-green-800'
+              }`}>
+                {investment.clientIntention === 'extend' ? 'Wants to Extend' :
+                 investment.clientIntention === 'partial' ? 'Partial Withdrawal' :
+                 'Full Payout'}
+              </span>
+              {investment.clientIntentionAt && (
+                <span className="text-xs text-gray-400">{formatDateTime(investment.clientIntentionAt)}</span>
+              )}
+            </div>
+            {investment.clientIntentionMessage && (
+              <p className="text-sm text-gray-700 italic">"{investment.clientIntentionMessage}"</p>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6">
         {/* Main details */}

@@ -97,6 +97,7 @@ model Investment {
   clientIntention     String?
   clientIntentionMessage String?
   clientIntentionAt   DateTime?
+  lastReminderSentAt  DateTime?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 

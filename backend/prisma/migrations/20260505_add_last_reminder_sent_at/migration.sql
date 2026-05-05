@@ -1,0 +1,1 @@
+ALTER TABLE "Investment" ADD COLUMN IF NOT EXISTS "lastReminderSentAt" TIMESTAMP(3);

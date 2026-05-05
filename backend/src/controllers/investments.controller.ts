@@ -604,7 +604,8 @@ export async function getReminderCandidates(req: AuthRequest, res: Response) {
       orderBy: { maturityDate: 'asc' },
       select: {
         id: true, clientName: true, clientEmail: true, plotNumber: true,
-        principal: true, maturityAmount: true, maturityDate: true, status: true, realtorName: true,
+        principal: true, maturityAmount: true, maturityDate: true, status: true,
+        realtorName: true, lastReminderSentAt: true,
       },
     }),
     prisma.investment.findMany({
@@ -658,6 +659,7 @@ export async function sendMaturityReminders(req: AuthRequest, res: Response) {
         interestRate: Number(inv.interestRate),
         responseUrl,
       });
+      await prisma.investment.update({ where: { id: inv.id }, data: { lastReminderSentAt: new Date() } });
       sent++;
     } catch (err: any) {
       const msg = err?.message || String(err);
