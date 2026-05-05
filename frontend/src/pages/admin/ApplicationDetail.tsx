@@ -349,7 +349,7 @@ export default function ApplicationDetail() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Plot Number *</label>
+              <label className="label">Plot Number</label>
               <input className="input" placeholder="e.g. A12" value={approveForm.plotNumber}
                 onChange={e => setApproveForm(f => ({ ...f, plotNumber: e.target.value }))} />
             </div>

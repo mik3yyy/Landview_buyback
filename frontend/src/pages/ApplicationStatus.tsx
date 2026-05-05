@@ -1,16 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
-import { Building2, CheckCircle, Clock, XCircle, RefreshCw } from 'lucide-react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Building2, CheckCircle, Clock, XCircle, Pencil } from 'lucide-react';
 import { applicationsAPI } from '../api/client';
 import { formatCurrency } from '../utils/formatters';
-import toast from 'react-hot-toast';
 
 const STATUS_CONFIG: Record<string, { icon: React.ReactNode; color: string; label: string; desc: string }> = {
   pending: {
     icon: <Clock size={32} className="text-yellow-500" />,
     color: 'bg-yellow-50 border-yellow-200',
     label: 'Under Review',
-    desc: 'Your application has been received and is currently being reviewed by our team. We will get back to you shortly.',
+    desc: 'Your application has been received and is currently being reviewed by our team. You can still edit your information while it is being reviewed.',
   },
   approved: {
     icon: <CheckCircle size={32} className="text-green-500" />,
@@ -34,11 +33,9 @@ const STATUS_CONFIG: Record<string, { icon: React.ReactNode; color: string; labe
 
 export default function ApplicationStatus() {
   const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const [appData, setAppData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [showResubmit, setShowResubmit] = useState(false);
-  const [message, setMessage] = useState('');
-  const [resubmitting, setResubmitting] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -47,21 +44,6 @@ export default function ApplicationStatus() {
       .catch(() => setAppData(null))
       .finally(() => setLoading(false));
   }, [id]);
-
-  const handleResubmit = async () => {
-    if (!id) return;
-    setResubmitting(true);
-    try {
-      await applicationsAPI.resubmit(id, { clientMessage: message });
-      toast.success('Application resubmitted successfully');
-      setShowResubmit(false);
-      setAppData((d: any) => ({ ...d, status: 'pending', rejectionReason: null }));
-    } catch {
-      toast.error('Failed to resubmit. Please try again.');
-    } finally {
-      setResubmitting(false);
-    }
-  };
 
   const cfg = appData ? (STATUS_CONFIG[appData.status] ?? STATUS_CONFIG.pending) : null;
 
@@ -125,6 +107,19 @@ export default function ApplicationStatus() {
               </div>
             </div>
 
+            {/* Edit button for pending applications */}
+            {appData.status === 'pending' && (
+              <div className="bg-white rounded-2xl shadow-sm border p-6">
+                <p className="text-sm text-gray-500 mb-3">Need to correct something? You can edit your application while it is under review.</p>
+                <button
+                  onClick={() => navigate(`/application-edit/${id}`)}
+                  className="btn-secondary w-full flex items-center justify-center gap-2"
+                >
+                  <Pencil size={15} /> Edit Application
+                </button>
+              </div>
+            )}
+
             {appData.status === 'rejected' && appData.rejectionReason && (
               <div className="bg-red-50 border border-red-200 rounded-2xl p-5">
                 <p className="text-sm font-semibold text-red-700 mb-1">Reason for rejection</p>
@@ -133,29 +128,14 @@ export default function ApplicationStatus() {
             )}
 
             {appData.status === 'rejected' && (
-              <div className="bg-white rounded-2xl shadow-sm border p-6">
-                {!showResubmit ? (
-                  <button onClick={() => setShowResubmit(true)} className="btn-primary w-full flex items-center justify-center gap-2">
-                    <RefreshCw size={15} /> Resubmit Application
-                  </button>
-                ) : (
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium text-gray-700">Add a message (optional)</p>
-                    <textarea
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                      rows={3}
-                      value={message}
-                      onChange={e => setMessage(e.target.value)}
-                      placeholder="Explain any changes or add additional information..."
-                    />
-                    <div className="flex gap-3">
-                      <button onClick={() => setShowResubmit(false)} className="btn-secondary flex-1 text-sm">Cancel</button>
-                      <button onClick={handleResubmit} disabled={resubmitting} className="btn-primary flex-1 text-sm">
-                        {resubmitting ? 'Submitting...' : 'Confirm Resubmit'}
-                      </button>
-                    </div>
-                  </div>
-                )}
+              <div className="bg-white rounded-2xl shadow-sm border p-6 space-y-3">
+                <p className="text-sm text-gray-600">Please review the rejection reason above, update your information, and resubmit.</p>
+                <button
+                  onClick={() => navigate(`/application-edit/${id}`)}
+                  className="btn-primary w-full flex items-center justify-center gap-2"
+                >
+                  <Pencil size={15} /> Edit & Resubmit Application
+                </button>
               </div>
             )}
           </div>

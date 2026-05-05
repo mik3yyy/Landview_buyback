@@ -19,6 +19,7 @@ import Apply from './pages/Apply';
 import ApplicationStatus from './pages/ApplicationStatus';
 import Applications from './pages/admin/Applications';
 import ApplicationDetail from './pages/admin/ApplicationDetail';
+import ApplicationEdit from './pages/ApplicationEdit';
 import InvestmentResponse from './pages/InvestmentResponse';
 
 function ProtectedRoute({ children, adminOnly = false, superAdminOnly = false }: {
@@ -43,6 +44,7 @@ function AppRoutes() {
       {/* Public routes — no auth required */}
       <Route path="/apply" element={<Apply />} />
       <Route path="/application-status/:id" element={<ApplicationStatus />} />
+      <Route path="/application-edit/:id" element={<ApplicationEdit />} />
       <Route path="/investment-response/:token" element={<InvestmentResponse />} />
 
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />

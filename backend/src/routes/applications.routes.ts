@@ -3,6 +3,7 @@ import {
   submitApplication,
   getApplicationStatus,
   resubmitApplication,
+  editApplication,
   listApplications,
   getApplication,
   reviewApplication,
@@ -18,6 +19,7 @@ const router = Router();
 router.post('/', submitApplication);
 router.get('/:id/status', getApplicationStatus);
 router.put('/:id/resubmit', resubmitApplication);
+router.put('/:id/edit', editApplication);
 
 // Admin routes
 router.get('/', authenticate, isAdminOrAbove, listApplications);

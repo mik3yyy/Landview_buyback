@@ -71,11 +71,46 @@ export async function getApplicationStatus(req: Request, res: Response) {
     where: { id },
     select: {
       id: true, status: true, rejectionReason: true, submittedAt: true, updatedAt: true,
-      surname: true, otherNames: true, duration: true, principal: true,
+      title: true, surname: true, otherNames: true, dateOfBirth: true, sex: true,
+      maritalStatus: true, nationality: true, countryOfResidence: true,
+      phoneNumber: true, alternativePhone: true, clientEmail: true,
+      correspondenceAddress: true, correspondenceCity: true, correspondenceState: true,
+      permanentAddress: true, permanentCity: true, permanentState: true, country: true,
+      isCorporate: true, corporateName: true, corporateAddress: true,
+      nextOfKinName: true, nextOfKinEmail: true, nextOfKinPhone: true,
+      duration: true, principal: true, wantsUpfront: true,
+      paymentMode: true, accountName: true, accountNumber: true, bankName: true,
+      sourceOfFunds: true, realtorName: true, realtorEmail: true, realtorPhone: true,
+      agreedToTerms: true, clientMessage: true,
     },
   });
   if (!application) return res.status(404).json({ error: 'Application not found' });
   return res.json(application);
+}
+
+// PUT /api/applications/:id/edit  — public, client edits pending or rejected application
+export async function editApplication(req: Request, res: Response) {
+  const { id } = req.params;
+  try {
+    const app = await prisma.clientApplication.findUnique({ where: { id } });
+    if (!app) return res.status(404).json({ error: 'Application not found' });
+    if (!['pending', 'rejected'].includes(app.status)) {
+      return res.status(400).json({ error: 'Only pending or rejected applications can be edited' });
+    }
+
+    const wasRejected = app.status === 'rejected';
+    await prisma.clientApplication.update({
+      where: { id },
+      data: {
+        ...buildUpdateData(req.body),
+        ...(wasRejected ? { status: 'pending', rejectionReason: null, reviewedBy: null, reviewedAt: null } : {}),
+      },
+    });
+    return res.json({ message: wasRejected ? 'Application updated and resubmitted' : 'Application updated' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: 'Failed to update application' });
+  }
 }
 
 // PUT /api/applications/:id/resubmit  — public, client resubmits after rejection
@@ -257,7 +292,7 @@ export async function approveApplication(req: AuthRequest, res: Response) {
         data: {
           transactionDate: txDate,
           clientName,
-          plotNumber,
+          plotNumber: plotNumber || '',
           duration,
           maturityDate,
           principal: principalNum,

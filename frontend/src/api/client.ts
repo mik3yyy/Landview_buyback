@@ -107,6 +107,7 @@ export const applicationsAPI = {
   submit: (data: any) => publicApi.post('/applications', data),
   getStatus: (id: string) => publicApi.get(`/applications/${id}/status`),
   resubmit: (id: string, data: any) => publicApi.put(`/applications/${id}/resubmit`, data),
+  edit: (id: string, data: any) => publicApi.put(`/applications/${id}/edit`, data),
   list: (params?: Record<string, string>) => api.get('/applications', { params }),
   get: (id: string) => api.get(`/applications/${id}`),
   review: (id: string) => api.post(`/applications/${id}/review`),
