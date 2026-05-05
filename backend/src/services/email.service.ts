@@ -1,14 +1,8 @@
-import nodemailer from 'nodemailer';
+import axios from 'axios';
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
-
-const FROM = `Landview Buyback <${process.env.GMAIL_USER}>`;
+const BREVO_API_KEY = process.env.BREVO_API_KEY || '';
+const SENDER_EMAIL = process.env.GMAIL_USER || 'mikeokpechi@gmail.com';
+const SENDER_NAME = 'Landview Buyback';
 
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' }).format(amount);
@@ -26,12 +20,26 @@ async function send(payload: {
   subject: string;
   html: string;
 }): Promise<void> {
-  await transporter.sendMail({
-    from: FROM,
-    to: payload.to,
-    ...(payload.cc ? { cc: payload.cc } : {}),
+  const toList = Array.isArray(payload.to)
+    ? payload.to.map(e => ({ email: e }))
+    : [{ email: payload.to }];
+
+  const body: any = {
+    sender: { name: SENDER_NAME, email: SENDER_EMAIL },
+    to: toList,
     subject: payload.subject,
-    html: payload.html,
+    htmlContent: payload.html,
+  };
+
+  if (payload.cc) {
+    body.cc = [{ email: payload.cc }];
+  }
+
+  await axios.post('https://api.brevo.com/v3/smtp/email', body, {
+    headers: {
+      'api-key': BREVO_API_KEY,
+      'Content-Type': 'application/json',
+    },
   });
 }
 
