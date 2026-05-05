@@ -100,13 +100,18 @@ export default function MaturityReminders() {
     setSending(true);
     try {
       const res = await responseAPI.sendReminders(Array.from(selected));
-      toast.success(
-        `Sent ${res.data.sent} reminder${res.data.sent !== 1 ? 's' : ''}` +
-        (res.data.failed > 0 ? `, ${res.data.failed} failed` : '')
-      );
+      if (res.data.sent > 0) {
+        toast.success(`Sent ${res.data.sent} reminder${res.data.sent !== 1 ? 's' : ''} successfully`);
+      }
+      if (res.data.errors?.length > 0) {
+        res.data.errors.forEach((e: string) => toast.error(e, { duration: 8000 }));
+      } else if (res.data.sent === 0) {
+        toast.error('No emails were sent — check backend logs');
+      }
       refresh();
-    } catch {
-      toast.error('Failed to send reminders');
+    } catch (err: any) {
+      const msg = err?.response?.data?.error || err?.message || 'Failed to send reminders';
+      toast.error(msg);
     } finally {
       setSending(false);
     }

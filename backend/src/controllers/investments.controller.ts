@@ -638,7 +638,10 @@ export async function sendMaturityReminders(req: AuthRequest, res: Response) {
 
   const investments = await prisma.investment.findMany({ where: whereClause });
 
-  let sent = 0; let failed = 0;
+  console.log(`[Reminders] Found ${investments.length} investment(s) to email`);
+
+  let sent = 0;
+  const errors: string[] = [];
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
 
   for (const inv of investments) {
@@ -659,9 +662,9 @@ export async function sendMaturityReminders(req: AuthRequest, res: Response) {
       });
       sent++;
     } catch (err: any) {
-      failed++;
-      const sgError = err?.response?.body?.errors?.[0]?.message || err?.message || String(err);
-      console.error(`[Email] Failed for investment ${inv.id} (${inv.clientEmail}):`, sgError);
+      const msg = err?.message || String(err);
+      errors.push(`${inv.clientEmail}: ${msg}`);
+      console.error(`[Email] Failed for investment ${inv.id} (${inv.clientEmail}):`, msg);
     }
   }
 
@@ -669,11 +672,11 @@ export async function sendMaturityReminders(req: AuthRequest, res: Response) {
     userId: req.user!.id,
     actionType: 'SEND_MATURITY_REMINDERS',
     entityType: 'investment',
-    description: `Sent maturity reminder emails: ${sent} sent, ${failed} failed`,
+    description: `Sent maturity reminder emails: ${sent} sent, ${errors.length} failed`,
     req,
   });
 
-  return res.json({ sent, failed, total: investments.length });
+  return res.json({ sent, failed: errors.length, total: investments.length, errors });
 }
 
 // GET /api/investments/response/:token  — public
