@@ -243,7 +243,11 @@ export async function updateInvestment(req: AuthRequest, res: Response) {
   const principalNum = principal ? parseFloat(principal) : Number(existing.principal);
   const interestRateNum = interestRate ? parseFloat(interestRate) : Number(existing.interestRate);
   const dur = duration || existing.duration;
-  const upfrontNum = upfrontPayment !== undefined ? parseFloat(upfrontPayment) : Number(existing.upfrontPayment || 0);
+  const upfrontNum = upfrontPayment === undefined
+    ? Number(existing.upfrontPayment || 0)
+    : upfrontPayment !== null
+      ? parseFloat(upfrontPayment)
+      : 0;
 
   const maturityDate = calculateMaturityDate(txDate, dur);
   const roiAmount = calculateROI(principalNum, interestRateNum);
