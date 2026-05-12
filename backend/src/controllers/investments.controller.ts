@@ -245,13 +245,15 @@ export async function updateInvestment(req: AuthRequest, res: Response) {
   const dur = duration || existing.duration;
   const upfrontNum = upfrontPayment === undefined
     ? Number(existing.upfrontPayment || 0)
-    : upfrontPayment !== null
-      ? parseFloat(upfrontPayment)
-      : 0;
+    : parseFloat(upfrontPayment) || 0;
 
   const maturityDate = calculateMaturityDate(txDate, dur);
   const roiAmount = calculateROI(principalNum, interestRateNum);
   const maturityAmount = calculateMaturityAmount(principalNum, roiAmount, upfrontNum);
+
+  if (Number.isNaN(maturityAmount) || Number.isNaN(principalNum) || Number.isNaN(interestRateNum)) {
+    return res.status(400).json({ error: 'Invalid numeric values: principal, interestRate, or upfrontPayment could not be parsed' });
+  }
 
   const updated = await prisma.investment.update({
     where: { id },
