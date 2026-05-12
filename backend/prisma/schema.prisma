@@ -193,6 +193,14 @@ model ClientApplication {
   // Agreement
   agreedToTerms       Boolean           @default(false)
 
+  // Custom/negotiated investment terms (overrides standard 6/12 month options)
+  hasCustomTerms      Boolean           @default(false)
+  customDuration      String?
+  customInterestRate  Decimal?          @db.Decimal(5, 2)
+
+  // Payment receipt image (Cloudinary URL)
+  receiptImageUrl     String?
+
   // Status workflow
   status              ApplicationStatus @default(pending)
   rejectionReason     String?

@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
-import { applicationsAPI } from '../api/client';
+import React, { useState, useRef } from 'react';
+import { applicationsAPI, uploadAPI } from '../api/client';
 import { formatCurrency } from '../utils/formatters';
-import { Building2, CheckCircle, Copy, Check, ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
+import { Building2, CheckCircle, Copy, Check, ChevronDown, ChevronUp, HelpCircle, Upload, X, ImageIcon } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const FAQ_ITEMS = [
@@ -153,14 +153,52 @@ export default function Apply() {
   const [submitted, setSubmitted] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Custom investment terms
+  const [hasCustomTerms, setHasCustomTerms] = useState(false);
+  const [customMonths, setCustomMonths] = useState('');
+  const [customRate, setCustomRate] = useState('');
+
+  // Receipt upload
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [receiptUrl, setReceiptUrl] = useState('');
+  const [uploadingReceipt, setUploadingReceipt] = useState(false);
+
   const set = (key: string, value: any) => setForm(f => ({ ...f, [key]: value }));
   const inp = (key: string) => ({ value: form[key], onChange: (e: any) => set(key, e.target.value), className: inputCls });
 
+  // Compute effective duration/rate (custom overrides standard)
+  const effectiveDuration = hasCustomTerms && customMonths
+    ? `${customMonths} months`
+    : form.duration;
   const selectedDuration = DURATION_OPTIONS.find(d => d.value === form.duration) || DURATION_OPTIONS[0];
+  const effectiveRate = hasCustomTerms && customRate
+    ? parseFloat(customRate) || 0
+    : selectedDuration.rate;
   const principal = parseFloat(form.principal) || 0;
-  const roi = principal * (selectedDuration.rate / 100);
+  const roi = principal * (effectiveRate / 100);
   const upfrontAmount = roi * 0.5;
   const maturityAmount = form.wantsUpfront ? principal + roi - upfrontAmount : principal + roi;
+
+  const handleReceiptSelect = async (file: File) => {
+    if (!['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'application/pdf'].includes(file.type)) {
+      toast.error('Only JPG, PNG, WebP, or PDF files are allowed');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) { toast.error('File must be under 10MB'); return; }
+    setReceiptFile(file);
+    setUploadingReceipt(true);
+    try {
+      const res = await uploadAPI.receipt(file);
+      setReceiptUrl(res.data.url);
+      toast.success('Receipt uploaded!');
+    } catch {
+      toast.error('Failed to upload receipt. You can continue without it.');
+      setReceiptFile(null);
+    } finally {
+      setUploadingReceipt(false);
+    }
+  };
 
   const toggleSource = (src: string) => {
     const arr: string[] = form.sourceOfFunds;
@@ -185,6 +223,10 @@ export default function Apply() {
     if (step === 4) {
       if (!form.principal || parseFloat(form.principal) <= 0) { toast.error('Enter a valid principal amount'); return false; }
       if (parseFloat(form.principal) < 1000000) { toast.error('Minimum investment is ₦1,000,000'); return false; }
+      if (hasCustomTerms) {
+        if (!customMonths || parseInt(customMonths) < 1 || parseInt(customMonths) > 48) { toast.error('Custom duration must be between 1 and 48 months'); return false; }
+        if (!customRate || parseFloat(customRate) <= 0) { toast.error('Enter a valid custom interest rate'); return false; }
+      }
     }
     if (step === 5) {
       if (!form.realtorName.trim()) { toast.error('Realtor name is required'); return false; }
@@ -212,6 +254,10 @@ export default function Apply() {
         permanentAddress: form.sameAsPermanent ? form.correspondenceAddress : form.permanentAddress,
         permanentCity: form.sameAsPermanent ? form.correspondenceCity : form.permanentCity,
         permanentState: form.sameAsPermanent ? form.correspondenceState : form.permanentState,
+        hasCustomTerms,
+        customDuration: hasCustomTerms && customMonths ? `${customMonths} months` : null,
+        customInterestRate: hasCustomTerms && customRate ? customRate : null,
+        receiptImageUrl: receiptUrl || null,
       };
       const res = await applicationsAPI.submit(payload);
       setSubmitted(res.data.id);
@@ -376,19 +422,77 @@ export default function Apply() {
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-gray-900">Investment Details</h2>
 
-              <Field label="Investment Duration" required>
-                <div className="grid grid-cols-2 gap-3 mt-1">
-                  {DURATION_OPTIONS.map(opt => (
-                    <label key={opt.value} className={`cursor-pointer border-2 rounded-xl p-4 text-center transition-colors
-                      ${form.duration === opt.value ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}>
-                      <input type="radio" name="duration" value={opt.value} checked={form.duration === opt.value}
-                        onChange={() => set('duration', opt.value)} className="sr-only" />
-                      <div className="font-bold text-gray-900">{opt.label}</div>
-                      <div className="text-blue-600 font-semibold">{opt.rate}% return</div>
-                    </label>
-                  ))}
-                </div>
-              </Field>
+              {/* Standard duration options (hidden when using custom terms) */}
+              {!hasCustomTerms && (
+                <Field label="Investment Duration" required>
+                  <div className="grid grid-cols-2 gap-3 mt-1">
+                    {DURATION_OPTIONS.map(opt => (
+                      <label key={opt.value} className={`cursor-pointer border-2 rounded-xl p-4 text-center transition-colors
+                        ${form.duration === opt.value ? 'border-blue-600 bg-blue-50' : 'border-gray-200 hover:border-blue-300'}`}>
+                        <input type="radio" name="duration" value={opt.value} checked={form.duration === opt.value}
+                          onChange={() => set('duration', opt.value)} className="sr-only" />
+                        <div className="font-bold text-gray-900">{opt.label}</div>
+                        <div className="text-blue-600 font-semibold">{opt.rate}% return</div>
+                      </label>
+                    ))}
+                  </div>
+                </Field>
+              )}
+
+              {/* Custom/negotiated terms toggle */}
+              <div className={`border-2 rounded-xl p-4 transition-colors ${hasCustomTerms ? 'border-purple-400 bg-purple-50' : 'border-gray-200'}`}>
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input type="checkbox" className="w-4 h-4 mt-0.5 accent-purple-600"
+                    checked={hasCustomTerms} onChange={e => setHasCustomTerms(e.target.checked)} />
+                  <div>
+                    <div className="text-sm font-medium text-gray-800">I have different / negotiated investment terms</div>
+                    <div className="text-xs text-gray-500 mt-0.5">Use this if your duration or return rate was agreed individually (e.g. 3, 18, 24, or up to 48 months, or a custom ROI).</div>
+                  </div>
+                </label>
+
+                {hasCustomTerms && (
+                  <div className="mt-4 grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Duration (months) <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          className={inputCls}
+                          placeholder="e.g. 18"
+                          min="1"
+                          max="48"
+                          value={customMonths}
+                          onChange={e => setCustomMonths(e.target.value)}
+                        />
+                        <span className="text-sm text-gray-500 whitespace-nowrap">months</span>
+                      </div>
+                      {customMonths && (parseInt(customMonths) < 1 || parseInt(customMonths) > 48) && (
+                        <p className="text-red-500 text-xs mt-1">Must be between 1 and 48 months</p>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Interest Rate (%) <span className="text-red-500">*</span>
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="number"
+                          className={inputCls}
+                          placeholder="e.g. 25"
+                          min="0"
+                          max="100"
+                          step="0.5"
+                          value={customRate}
+                          onChange={e => setCustomRate(e.target.value)}
+                        />
+                        <span className="text-sm text-gray-500">%</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               <Field label="Principal Amount (₦)" required>
                 <input type="number" {...inp('principal')} placeholder="Minimum ₦1,000,000" min="1000000" step="1000" />
@@ -397,11 +501,12 @@ export default function Apply() {
                 )}
               </Field>
 
-              {principal > 0 && (
+              {principal > 0 && effectiveRate > 0 && (
                 <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-2 text-sm">
-                  <p className="font-semibold text-blue-800 mb-3">Estimated Returns</p>
+                  <p className="font-semibold text-blue-800 mb-3">Estimated Returns {hasCustomTerms && <span className="text-purple-600 font-normal">(custom terms)</span>}</p>
                   <div className="flex justify-between"><span className="text-gray-600">Principal</span><span className="font-medium">{formatCurrency(principal)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-600">Interest Rate</span><span className="font-medium">{selectedDuration.rate}%</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">Duration</span><span className="font-medium">{effectiveDuration}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-600">Interest Rate</span><span className="font-medium">{effectiveRate}%</span></div>
                   <div className="flex justify-between"><span className="text-gray-600">ROI (profit)</span><span className="font-medium text-green-700">{formatCurrency(roi)}</span></div>
                   {form.wantsUpfront && (
                     <div className="flex justify-between"><span className="text-gray-600">Upfront (50% of profit, after 6 weeks)</span><span className="font-medium text-orange-600">{formatCurrency(upfrontAmount)}</span></div>
@@ -485,6 +590,54 @@ export default function Apply() {
             <div className="space-y-5">
               <h2 className="text-xl font-bold text-gray-900">Finalise Application</h2>
 
+              {/* Receipt upload */}
+              <div className={`border-2 rounded-xl p-4 ${receiptUrl ? 'border-green-400 bg-green-50' : 'border-dashed border-gray-300 bg-gray-50'}`}>
+                <div className="flex items-start gap-3 mb-3">
+                  <ImageIcon size={20} className={receiptUrl ? 'text-green-600 flex-shrink-0 mt-0.5' : 'text-gray-400 flex-shrink-0 mt-0.5'} />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">
+                      Payment Receipt <span className="text-orange-500 font-normal text-xs">(highly recommended)</span>
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Attach a photo or scan of your payment receipt to speed up approval. If you haven't paid yet, you can skip this and submit later.
+                    </p>
+                  </div>
+                </div>
+
+                <input
+                  ref={receiptInputRef}
+                  type="file"
+                  accept="image/*,.pdf"
+                  className="hidden"
+                  onChange={e => e.target.files?.[0] && handleReceiptSelect(e.target.files[0])}
+                />
+
+                {receiptUrl ? (
+                  <div className="flex items-center gap-3">
+                    <CheckCircle size={16} className="text-green-600" />
+                    <span className="text-sm text-green-700 font-medium flex-1 truncate">{receiptFile?.name || 'Receipt uploaded'}</span>
+                    <button
+                      type="button"
+                      onClick={() => { setReceiptFile(null); setReceiptUrl(''); }}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => receiptInputRef.current?.click()}
+                    disabled={uploadingReceipt}
+                    className="flex items-center gap-2 text-sm text-blue-600 font-medium border border-blue-200 bg-white hover:bg-blue-50 px-4 py-2 rounded-lg transition-colors"
+                  >
+                    {uploadingReceipt
+                      ? <><div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" /> Uploading...</>
+                      : <><Upload size={15} /> Attach Receipt</>}
+                  </button>
+                )}
+              </div>
+
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-2">Source of Funds</p>
                 <p className="text-xs text-gray-500 mb-3">Select all that apply</p>
@@ -528,8 +681,9 @@ export default function Apply() {
                 <p className="font-semibold text-blue-800">Summary</p>
                 <p className="text-gray-700">Name: <strong>{form.title} {form.surname} {form.otherNames}</strong></p>
                 <p className="text-gray-700">Phone: <strong>{form.phoneNumber}</strong></p>
-                <p className="text-gray-700">Duration: <strong>{form.duration}</strong> · Principal: <strong>{formatCurrency(principal)}</strong></p>
-                <p className="text-gray-700">Expected at maturity: <strong className="text-blue-700">{formatCurrency(maturityAmount)}</strong></p>
+                <p className="text-gray-700">Duration: <strong>{effectiveDuration}</strong>{hasCustomTerms && <span className="text-purple-600 text-xs ml-1">(custom)</span>} · Principal: <strong>{formatCurrency(principal)}</strong></p>
+                <p className="text-gray-700">Rate: <strong>{effectiveRate}%</strong> · Expected at maturity: <strong className="text-blue-700">{formatCurrency(maturityAmount)}</strong></p>
+                {receiptUrl && <p className="text-gray-700 flex items-center gap-1"><CheckCircle size={13} className="text-green-500" /> <span className="text-green-700">Payment receipt attached</span></p>}
               </div>
             </div>
           )}

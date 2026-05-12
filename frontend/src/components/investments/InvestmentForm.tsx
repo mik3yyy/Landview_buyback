@@ -70,7 +70,7 @@ export default function InvestmentForm({ initialData, investmentId, onSuccess, o
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.clientName || !form.plotNumber || !form.principal || !form.interestRate) {
+    if (!form.clientName || !form.principal || !form.interestRate) {
       toast.error('Please fill in all required fields');
       return;
     }
@@ -166,8 +166,8 @@ export default function InvestmentForm({ initialData, investmentId, onSuccess, o
       </div>
 
       <div>
-        <label className="label">Plot Number/Size *</label>
-        <input type="text" className="input" placeholder="e.g. PLT-001A or 500sqm" value={form.plotNumber} onChange={set('plotNumber')} required />
+        <label className="label">Plot Number/Size</label>
+        <input type="text" className="input" placeholder="e.g. PLT-001A or 500sqm (optional)" value={form.plotNumber} onChange={set('plotNumber')} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">

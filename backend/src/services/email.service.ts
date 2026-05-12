@@ -210,6 +210,117 @@ export async function sendPaymentCompletion(data: {
   });
 }
 
+export async function sendApplicationSubmissionEmail(data: {
+  clientName: string;
+  clientEmail: string;
+  applicationId: string;
+  principal: number;
+  duration: string;
+  statusUrl: string;
+}): Promise<void> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+      <div style="background: #1e3a5f; color: white; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
+        <h1 style="margin: 0; font-size: 22px;">Application Received!</h1>
+        <p style="margin: 8px 0 0; opacity: 0.8;">Landview Property Investments Limited</p>
+      </div>
+      <div style="background: white; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #e0e0e0;">
+        <p>Dear <strong>${data.clientName}</strong>,</p>
+        <p>Thank you for submitting your investment application with Landview Property Investments Limited. We have received your application and our team will review it shortly.</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr style="background:#f5f5f5;"><td style="padding:10px;border:1px solid #ddd;"><strong>Application ID</strong></td><td style="padding:10px;border:1px solid #ddd; font-family: monospace;">${data.applicationId}</td></tr>
+          <tr><td style="padding:10px;border:1px solid #ddd;"><strong>Principal Amount</strong></td><td style="padding:10px;border:1px solid #ddd;">${formatCurrency(data.principal)}</td></tr>
+          <tr style="background:#f5f5f5;"><td style="padding:10px;border:1px solid #ddd;"><strong>Duration</strong></td><td style="padding:10px;border:1px solid #ddd;">${data.duration}</td></tr>
+        </table>
+        <p>You can track the status of your application at any time using the link below:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.statusUrl}" style="background:#1e3a5f;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block;">
+            Track My Application →
+          </a>
+        </div>
+        <p style="color:#888;font-size:12px;">Or copy this link: <a href="${data.statusUrl}" style="color:#1e3a5f;">${data.statusUrl}</a></p>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
+        <p style="color:#666;font-size:13px;">If you have any questions, please visit our office at Road 12, Block 10B, Plot 8, Lekki Scheme II, Ajah, Lagos, or call us directly.</p>
+        <p style="margin-top: 20px; color: #666;">Best regards,<br><strong>Landview Investment Team</strong></p>
+      </div>
+    </div>
+  `;
+  await send({ to: data.clientEmail, subject: 'Application Received — Landview Investment Registration', html });
+}
+
+export async function sendApplicationRejectionEmail(data: {
+  clientName: string;
+  clientEmail: string;
+  applicationId: string;
+  reason?: string;
+  statusUrl: string;
+}): Promise<void> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+      <div style="background: #dc2626; color: white; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
+        <h1 style="margin: 0; font-size: 22px;">Application Update</h1>
+        <p style="margin: 8px 0 0; opacity: 0.85;">Landview Property Investments Limited</p>
+      </div>
+      <div style="background: white; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #e0e0e0;">
+        <p>Dear <strong>${data.clientName}</strong>,</p>
+        <p>We regret to inform you that your investment application (ID: <strong>${data.applicationId}</strong>) has not been approved at this time.</p>
+        ${data.reason ? `
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:20px 0;">
+          <p style="margin:0;color:#991b1b;"><strong>Reason:</strong> ${data.reason}</p>
+        </div>` : ''}
+        <p>You are welcome to update your application and resubmit. Use the link below to view and edit your application:</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.statusUrl}" style="background:#1e3a5f;color:white;padding:14px 32px;border-radius:8px;text-decoration:none;font-size:16px;font-weight:bold;display:inline-block;">
+            View & Update Application →
+          </a>
+        </div>
+        <p style="color:#888;font-size:12px;">Or copy this link: <a href="${data.statusUrl}" style="color:#1e3a5f;">${data.statusUrl}</a></p>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
+        <p style="color:#666;font-size:13px;">If you believe this is an error or would like to discuss further, please visit our office at Road 12, Block 10B, Plot 8, Lekki Scheme II, Ajah, Lagos.</p>
+        <p style="margin-top: 20px; color: #666;">Best regards,<br><strong>Landview Investment Team</strong></p>
+      </div>
+    </div>
+  `;
+  await send({ to: data.clientEmail, subject: 'Investment Application Update — Landview Properties', html });
+}
+
+export async function sendApplicationApprovedEmail(data: {
+  clientName: string;
+  clientEmail: string;
+  plotNumber: string;
+  principal: number;
+  maturityAmount: number;
+  maturityDate: Date;
+  duration: string;
+  interestRate: number;
+}): Promise<void> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+      <div style="background: #16a34a; color: white; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
+        <h1 style="margin: 0; font-size: 22px;">Congratulations — Investment Activated!</h1>
+        <p style="margin: 8px 0 0; opacity: 0.85;">Landview Property Investments Limited</p>
+      </div>
+      <div style="background: white; padding: 30px; border-radius: 0 0 8px 8px; border: 1px solid #e0e0e0;">
+        <p>Dear <strong>${data.clientName}</strong>,</p>
+        <p>We are pleased to confirm that your investment application has been <strong>approved and activated</strong>. Welcome to the Landview Buyback Investment Programme!</p>
+        <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+          <tr style="background:#f5f5f5;"><td style="padding:10px;border:1px solid #ddd;"><strong>Plot Number</strong></td><td style="padding:10px;border:1px solid #ddd;">${data.plotNumber || '—'}</td></tr>
+          <tr><td style="padding:10px;border:1px solid #ddd;"><strong>Principal Invested</strong></td><td style="padding:10px;border:1px solid #ddd;">${formatCurrency(data.principal)}</td></tr>
+          <tr style="background:#f5f5f5;"><td style="padding:10px;border:1px solid #ddd;"><strong>Duration</strong></td><td style="padding:10px;border:1px solid #ddd;">${data.duration}</td></tr>
+          <tr><td style="padding:10px;border:1px solid #ddd;"><strong>Interest Rate</strong></td><td style="padding:10px;border:1px solid #ddd;">${data.interestRate}%</td></tr>
+          <tr><td style="padding:10px;border:1px solid #ddd;"><strong>Maturity Date</strong></td><td style="padding:10px;border:1px solid #ddd;">${formatDate(data.maturityDate)}</td></tr>
+          <tr style="background:#dcfce7;"><td style="padding:10px;border:1px solid #ddd;"><strong>Total at Maturity</strong></td><td style="padding:10px;border:1px solid #ddd;font-size:1.2em;color:#16a34a;"><strong>${formatCurrency(data.maturityAmount)}</strong></td></tr>
+        </table>
+        <p>Our team will reach out as your investment approaches its maturity date. We look forward to a successful partnership.</p>
+        <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
+        <p style="color:#666;font-size:13px;">For any enquiries, visit our office at Road 12, Block 10B, Plot 8, Lekki Scheme II, Ajah, Lagos.</p>
+        <p style="margin-top: 20px; color: #666;">Best regards,<br><strong>Landview Investment Team</strong></p>
+      </div>
+    </div>
+  `;
+  await send({ to: data.clientEmail, subject: 'Investment Activated — Welcome to Landview Buyback Programme', html });
+}
+
 export async function sendDailyPaymentDueList(superAdminEmails: string[], investments: any[]): Promise<void> {
   if (!investments.length || !superAdminEmails.length) return;
 

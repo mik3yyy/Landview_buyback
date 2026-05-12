@@ -12,6 +12,7 @@ import auditLogRoutes from './routes/auditLogs.routes';
 import aiUploadRoutes from './routes/aiUpload.routes';
 import settingsRoutes from './routes/settings.routes';
 import applicationRoutes from './routes/applications.routes';
+import uploadRoutes from './routes/upload.routes';
 import { errorHandler } from './middleware/errorHandler';
 import { initCronJobs } from './services/cron.service';
 
@@ -62,6 +63,7 @@ app.use('/api/audit-logs', auditLogRoutes);
 app.use('/api/ai-upload', aiUploadRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/applications', applicationRoutes);
+app.use('/api/upload', uploadRoutes);
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
 

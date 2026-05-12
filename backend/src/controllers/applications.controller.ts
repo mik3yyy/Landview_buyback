@@ -8,6 +8,11 @@ import {
   calculateMaturityAmount,
 } from '../utils/calculations';
 import { ApplicationStatus } from '@prisma/client';
+import {
+  sendApplicationSubmissionEmail,
+  sendApplicationRejectionEmail,
+  sendApplicationApprovedEmail,
+} from '../services/email.service';
 
 // POST /api/applications  — public, no auth
 export async function submitApplication(req: Request, res: Response) {
@@ -53,9 +58,29 @@ export async function submitApplication(req: Request, res: Response) {
         realtorPhone: data.realtorPhone || null,
         agreedToTerms: data.agreedToTerms || false,
         clientMessage: data.clientMessage || null,
+        hasCustomTerms: data.hasCustomTerms || false,
+        customDuration: data.customDuration || null,
+        customInterestRate: data.customInterestRate ? parseFloat(data.customInterestRate) : null,
+        receiptImageUrl: data.receiptImageUrl || null,
         status: 'pending',
       },
     });
+
+    // Send confirmation email if client provided email
+    if (data.clientEmail) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      const statusUrl = `${frontendUrl}/application-status/${application.id}`;
+      const principal = parseFloat(data.principal) || 0;
+      const duration = data.hasCustomTerms && data.customDuration ? data.customDuration : data.duration;
+      sendApplicationSubmissionEmail({
+        clientName: `${data.title ? data.title + ' ' : ''}${data.surname} ${data.otherNames}`.trim(),
+        clientEmail: data.clientEmail,
+        applicationId: application.id,
+        principal,
+        duration,
+        statusUrl,
+      }).catch(err => console.error('[Email] Submission confirmation failed:', err));
+    }
 
     return res.status(201).json({ id: application.id, message: 'Application submitted successfully' });
   } catch (err) {
@@ -252,6 +277,17 @@ export async function rejectApplication(req: AuthRequest, res: Response) {
       description: `Rejected application for ${app.surname} ${app.otherNames}. Reason: ${reason || 'none'}`,
     });
 
+    if (app.clientEmail) {
+      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+      sendApplicationRejectionEmail({
+        clientName: `${app.title ? app.title + ' ' : ''}${app.surname} ${app.otherNames}`.trim(),
+        clientEmail: app.clientEmail,
+        applicationId: id,
+        reason: reason || undefined,
+        statusUrl: `${frontendUrl}/application-status/${id}`,
+      }).catch(err => console.error('[Email] Rejection email failed:', err));
+    }
+
     return res.json({ message: 'Application rejected' });
   } catch (err) {
     console.error(err);
@@ -328,6 +364,19 @@ export async function approveApplication(req: AuthRequest, res: Response) {
       description: `Approved application for ${app.surname} ${app.otherNames} → Investment ${investment.id}`,
     });
 
+    if (app.clientEmail) {
+      sendApplicationApprovedEmail({
+        clientName: clientName,
+        clientEmail: app.clientEmail,
+        plotNumber: plotNumber || '',
+        principal: principalNum,
+        maturityAmount,
+        maturityDate,
+        duration,
+        interestRate: rate,
+      }).catch(err => console.error('[Email] Approval email failed:', err));
+    }
+
     return res.json({ message: 'Application approved and investment created', investmentId: investment.id });
   } catch (err) {
     console.error(err);
@@ -374,5 +423,9 @@ function buildUpdateData(data: any) {
     realtorPhone: data.realtorPhone || null,
     agreedToTerms: data.agreedToTerms || false,
     clientMessage: data.clientMessage || null,
+    hasCustomTerms: data.hasCustomTerms || false,
+    customDuration: data.customDuration || null,
+    customInterestRate: data.customInterestRate ? parseFloat(data.customInterestRate) : null,
+    receiptImageUrl: data.receiptImageUrl || null,
   };
 }

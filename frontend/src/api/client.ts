@@ -104,6 +104,14 @@ const publicApi = axios.create({
   timeout: 30000,
 });
 
+export const uploadAPI = {
+  receipt: (file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return publicApi.post('/upload/receipt', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+};
+
 export const applicationsAPI = {
   submit: (data: any) => publicApi.post('/applications', data),
   getStatus: (id: string) => publicApi.get(`/applications/${id}/status`),
