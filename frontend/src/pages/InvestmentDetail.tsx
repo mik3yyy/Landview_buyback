@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  ArrowLeft, Edit, TrendingUp, Calendar, Clock, User,
-  Mail, Home, CheckCircle, RefreshCw, Trash2, FileText, MessageSquare
+  ArrowLeft, Edit, TrendingUp, Calendar, User,
+  Mail, Home, CheckCircle, RefreshCw, Trash2, FileText, MessageSquare, XCircle
 } from 'lucide-react';
 import { investmentsAPI } from '../api/client';
 import { formatCurrency, formatDate, formatDateTime, getDaysLabel } from '../utils/formatters';
@@ -19,6 +19,11 @@ interface ExtendFormData {
   new_principal: string;
 }
 
+interface TerminateFormData {
+  reason: string;
+  exitAmount: string;
+}
+
 export default function InvestmentDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -28,7 +33,11 @@ export default function InvestmentDetail() {
   const [showExtendModal, setShowExtendModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
+  const [showInitiateModal, setShowInitiateModal] = useState(false);
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showTerminateModal, setShowTerminateModal] = useState(false);
   const [extendForm, setExtendForm] = useState<ExtendFormData>({ new_duration: '6 months', new_interest_rate: '', new_principal: '' });
+  const [terminateForm, setTerminateForm] = useState<TerminateFormData>({ reason: '', exitAmount: '' });
 
   const { data: investment, loading, refreshing, error, refresh } = useBackgroundFetch<any>(
     `investment:${id}`,
@@ -51,6 +60,7 @@ export default function InvestmentDetail() {
     try {
       await investmentsAPI.markPaymentInitiated(id!);
       toast.success('Payment marked as initiated');
+      setShowInitiateModal(false);
       afterMutation();
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed');
@@ -116,9 +126,28 @@ export default function InvestmentDetail() {
     try {
       await investmentsAPI.approveInvestment(id!);
       toast.success('Investment approved and is now active');
+      setShowApproveModal(false);
       afterMutation();
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to approve');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleTerminate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setActionLoading(true);
+    try {
+      await investmentsAPI.terminate(id!, {
+        reason: terminateForm.reason || undefined,
+        exitAmount: terminateForm.exitAmount || undefined,
+      });
+      toast.success('Investment terminated');
+      setShowTerminateModal(false);
+      afterMutation();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to terminate');
     } finally {
       setActionLoading(false);
     }
@@ -151,7 +180,7 @@ export default function InvestmentDetail() {
             </div>
             {isSuperAdmin && (
               <button
-                onClick={handleApproveInvestment}
+                onClick={() => setShowApproveModal(true)}
                 disabled={actionLoading}
                 className="btn-success flex items-center gap-2 text-sm flex-shrink-0"
               >
@@ -165,7 +194,7 @@ export default function InvestmentDetail() {
         {!isPendingReview && (
           <div className="flex gap-2 flex-wrap">
             {canInitiate && (
-              <button onClick={handleMarkPaymentInitiated} disabled={actionLoading} className="btn-primary flex items-center gap-2 text-sm">
+              <button onClick={() => setShowInitiateModal(true)} disabled={actionLoading} className="btn-primary flex items-center gap-2 text-sm">
                 <CheckCircle size={15} /> <span className="hidden sm:inline">Mark </span>Payment Initiated
               </button>
             )}
@@ -174,15 +203,20 @@ export default function InvestmentDetail() {
                 <CheckCircle size={15} /> Complete Payment
               </button>
             )}
-            {investment.status !== 'completed' && (
+            {investment.status !== 'completed' && investment.status !== 'terminated' && (
               <button onClick={() => setShowExtendModal(true)} className="btn-secondary flex items-center gap-2 text-sm">
                 <RefreshCw size={15} /> Extend
               </button>
             )}
-            {isAdminOrAbove && investment.status !== 'completed' && (
+            {isAdminOrAbove && investment.status !== 'completed' && investment.status !== 'terminated' && (
               <Link to={`/investments/${id}/edit`} className="btn-secondary flex items-center gap-2 text-sm">
                 <Edit size={15} /> Edit
               </Link>
+            )}
+            {isAdminOrAbove && investment.status !== 'completed' && investment.status !== 'terminated' && (
+              <button onClick={() => setShowTerminateModal(true)} className="btn-danger flex items-center gap-2 text-sm">
+                <XCircle size={15} /> Terminate
+              </button>
             )}
             {isSuperAdmin && (
               <button onClick={() => setShowDeleteModal(true)} className="btn-danger flex items-center gap-2 text-sm">
@@ -455,6 +489,82 @@ export default function InvestmentDetail() {
           </div>
         </form>
       </Modal>
+
+      {/* Termination info card */}
+      {investment.status === 'terminated' && (
+        <div className="card border-2 border-red-200 bg-red-50">
+          <h2 className="font-semibold text-red-800 mb-3 flex items-center gap-2"><XCircle size={18} className="text-red-600" /> Termination Details</h2>
+          <div className="space-y-2 text-sm">
+            <div className="flex justify-between"><span className="text-gray-500">Terminated On:</span> <span className="font-medium">{investment.terminatedAt ? formatDateTime(investment.terminatedAt) : '—'}</span></div>
+            {investment.terminationExitAmount && (
+              <div className="flex justify-between"><span className="text-gray-500">Exit Amount:</span> <span className="font-semibold text-red-700">{formatCurrency(Number(investment.terminationExitAmount))}</span></div>
+            )}
+            {investment.terminationReason && (
+              <div><span className="text-gray-500">Reason:</span> <span className="font-medium ml-1 italic">"{investment.terminationReason}"</span></div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Terminate Modal */}
+      <Modal isOpen={showTerminateModal} onClose={() => setShowTerminateModal(false)} title="Terminate Investment Early">
+        <form onSubmit={handleTerminate} className="space-y-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+            <p className="font-semibold">This will end the investment before its maturity date.</p>
+            <p className="text-xs mt-0.5 text-red-600">Status will be set to <strong>Terminated</strong>. This cannot be undone.</p>
+          </div>
+          <div>
+            <label className="label">Reason <span className="text-gray-400 font-normal">(optional)</span></label>
+            <input
+              type="text"
+              className="input"
+              placeholder="e.g. Client requested early exit, financial hardship..."
+              value={terminateForm.reason}
+              onChange={e => setTerminateForm(p => ({ ...p, reason: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label className="label">Exit Amount (₦) <span className="text-gray-400 font-normal">(optional — amount paid to client on exit)</span></label>
+            <input
+              type="number"
+              className="input"
+              placeholder={`Full maturity would be ${formatCurrency(Number(investment.maturityAmount))}`}
+              step="1000"
+              min="0"
+              value={terminateForm.exitAmount}
+              onChange={e => setTerminateForm(p => ({ ...p, exitAmount: e.target.value }))}
+            />
+          </div>
+          <div className="flex gap-3 justify-end">
+            <button type="button" onClick={() => setShowTerminateModal(false)} className="btn-secondary">Cancel</button>
+            <button type="submit" className="btn-danger" disabled={actionLoading}>
+              {actionLoading ? 'Terminating...' : 'Terminate Investment'}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmModal
+        isOpen={showInitiateModal}
+        title="Mark Payment Initiated"
+        message={`Confirm that payment of ${formatCurrency(Number(investment.maturityAmount))} has been initiated for ${investment.clientName}?`}
+        confirmLabel="Mark Initiated"
+        confirmClass="btn-primary"
+        onConfirm={handleMarkPaymentInitiated}
+        onCancel={() => setShowInitiateModal(false)}
+        loading={actionLoading}
+      />
+
+      <ConfirmModal
+        isOpen={showApproveModal}
+        title="Approve Investment"
+        message={`Approve this investment for ${investment.clientName} (${formatCurrency(Number(investment.principal))})? It will become active immediately.`}
+        confirmLabel="Approve"
+        confirmClass="btn-success"
+        onConfirm={handleApproveInvestment}
+        onCancel={() => setShowApproveModal(false)}
+        loading={actionLoading}
+      />
 
       <ConfirmModal
         isOpen={showCompleteModal}

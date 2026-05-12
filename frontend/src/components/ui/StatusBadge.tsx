@@ -22,6 +22,7 @@ export default function StatusBadge({ status, daysUntilMaturity }: Props) {
     completed: 'badge-completed',
     extended: 'badge-extended',
     payment_initiated: 'badge-payment_initiated',
+    terminated: 'bg-red-100 text-red-700 text-xs font-medium px-2.5 py-0.5 rounded-full',
   };
 
   return (

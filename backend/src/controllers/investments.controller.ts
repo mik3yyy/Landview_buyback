@@ -367,6 +367,40 @@ export async function extendInvestment(req: AuthRequest, res: Response) {
   return res.json({ ...updated, daysUntilMaturity: calculateDaysUntilMaturity(updated.maturityDate) });
 }
 
+export async function terminateInvestment(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const { reason, exitAmount } = req.body;
+
+  const existing = await prisma.investment.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Investment not found' });
+  if (existing.status === 'completed') return res.status(400).json({ error: 'Cannot terminate a completed investment' });
+  if (existing.status === 'terminated') return res.status(400).json({ error: 'Investment is already terminated' });
+
+  const exitAmountNum = exitAmount ? parseFloat(exitAmount) : null;
+
+  const updated = await prisma.investment.update({
+    where: { id },
+    data: {
+      status: 'terminated',
+      terminationReason: reason || null,
+      terminationExitAmount: exitAmountNum,
+      terminatedAt: new Date(),
+      terminatedBy: req.user!.id,
+    },
+  });
+
+  await createAuditLog({
+    userId: req.user!.id,
+    actionType: 'TERMINATE_INVESTMENT',
+    entityType: 'investment',
+    entityId: id,
+    description: `Investment terminated early${reason ? `: ${reason}` : ''}${exitAmountNum ? ` — exit amount ₦${exitAmountNum.toLocaleString()}` : ''}`,
+    req,
+  });
+
+  return res.json(updated);
+}
+
 export async function markPaymentInitiated(req: AuthRequest, res: Response) {
   const { id } = req.params;
   const existing = await prisma.investment.findUnique({ where: { id } });

@@ -43,6 +43,7 @@ export const investmentsAPI = {
   approveInvestment: (id: string) => api.post(`/investments/${id}/approve`),
   markPaymentInitiated: (id: string) => api.post(`/investments/${id}/mark-payment-initiated`),
   markPaymentCompleted: (id: string) => api.post(`/investments/${id}/mark-payment-completed`),
+  terminate: (id: string, data: { reason?: string; exitAmount?: string }) => api.post(`/investments/${id}/terminate`, data),
   dashboard: () => api.get('/investments/dashboard'),
   export: (params?: Record<string, string>) =>
     api.get('/investments/export', { params, responseType: 'blob' }),

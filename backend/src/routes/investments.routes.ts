@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import {
   listInvestments, getInvestment, createInvestment, updateInvestment, approveInvestment,
-  extendInvestment, markPaymentInitiated, markPaymentCompleted,
+  extendInvestment, terminateInvestment, markPaymentInitiated, markPaymentCompleted,
   deleteInvestment, getDashboardStats, exportInvestments,
   bulkCreateInvestments, findDuplicates,
   sendMaturityReminders, getReminderCandidates, getInvestmentByToken, submitClientIntention, markUpfrontPaid,
@@ -30,6 +30,7 @@ router.put('/:id', isAdminOrAbove, updateInvestment);
 router.delete('/:id', isAdminOrAbove, deleteInvestment);
 router.post('/:id/approve', isSuperAdmin, approveInvestment);
 router.post('/:id/extend', isAnyRole, extendInvestment);
+router.post('/:id/terminate', isAdminOrAbove, terminateInvestment);
 router.post('/:id/mark-payment-initiated', isAnyRole, markPaymentInitiated);
 router.post('/:id/mark-payment-completed', isAdminOrAbove, markPaymentCompleted);
 router.post('/:id/mark-upfront-paid', isAdminOrAbove, markUpfrontPaid);

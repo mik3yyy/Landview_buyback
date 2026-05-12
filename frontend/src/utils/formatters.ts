@@ -33,6 +33,7 @@ export function getStatusLabel(status: string): string {
     completed: 'Completed',
     extended: 'Extended',
     payment_initiated: 'Payment Initiated',
+    terminated: 'Terminated',
   };
   return map[status] || status;
 }
