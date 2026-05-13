@@ -44,6 +44,8 @@ export const investmentsAPI = {
   markPaymentInitiated: (id: string) => api.post(`/investments/${id}/mark-payment-initiated`),
   markPaymentCompleted: (id: string) => api.post(`/investments/${id}/mark-payment-completed`),
   terminate: (id: string, data: { reason?: string; exitAmount?: string }) => api.post(`/investments/${id}/terminate`, data),
+  confirmTermination: (id: string) => api.post(`/investments/${id}/confirm-termination`),
+  cancelTermination: (id: string) => api.post(`/investments/${id}/cancel-termination`),
   dashboard: () => api.get('/investments/dashboard'),
   export: (params?: Record<string, string>) =>
     api.get('/investments/export', { params, responseType: 'blob' }),
@@ -95,7 +97,7 @@ export const responseAPI = {
     publicApi.post(`/investments/response/${token}`, data),
   sendReminders: (investmentIds: string[]) => api.post('/investments/send-maturity-reminders', { investmentIds }),
   markUpfrontPaid: (id: string) => api.post(`/investments/${id}/mark-upfront-paid`),
-  getReminderCandidates: () => api.get('/investments/reminder-candidates'),
+  getReminderCandidates: (days?: number) => api.get('/investments/reminder-candidates', { params: days ? { days } : undefined }),
 };
 
 // Applications (public + admin)

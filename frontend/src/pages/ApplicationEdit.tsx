@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { applicationsAPI } from '../api/client';
+import { applicationsAPI, uploadAPI } from '../api/client';
 import { formatCurrency } from '../utils/formatters';
-import { Building2, CheckCircle, Check, ChevronDown, ChevronUp, AlertTriangle, Loader2 } from 'lucide-react';
+import { Building2, CheckCircle, Check, AlertTriangle, Loader2, Upload, FileImage } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const DURATION_OPTIONS = [
@@ -69,6 +69,9 @@ export default function ApplicationEdit() {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
+  const receiptInputRef = useRef<HTMLInputElement>(null);
+  const [receiptUploading, setReceiptUploading] = useState(false);
+
   const [form, setForm] = useState<Record<string, any>>({
     title: '', surname: '', otherNames: '', dateOfBirth: '', sex: '', maritalStatus: '',
     nationality: '', countryOfResidence: 'Nigeria', phoneNumber: '', alternativePhone: '',
@@ -85,6 +88,7 @@ export default function ApplicationEdit() {
     realtorName: '', realtorEmail: '', realtorPhone: '',
     agreedToTerms: false,
     clientMessage: '',
+    receiptImageUrl: '',
   });
 
   useEffect(() => {
@@ -144,6 +148,7 @@ export default function ApplicationEdit() {
           realtorPhone: d.realtorPhone || '',
           agreedToTerms: d.agreedToTerms || false,
           clientMessage: d.clientMessage || '',
+          receiptImageUrl: d.receiptImageUrl || '',
         });
       })
       .catch(() => toast.error('Application not found'))
@@ -162,6 +167,22 @@ export default function ApplicationEdit() {
   const toggleSource = (src: string) => {
     const arr: string[] = form.sourceOfFunds;
     set('sourceOfFunds', arr.includes(src) ? arr.filter((s: string) => s !== src) : [...arr, src]);
+  };
+
+  const handleReceiptSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReceiptUploading(true);
+    try {
+      const res = await uploadAPI.receipt(file);
+      set('receiptImageUrl', res.data.url);
+      toast.success('Receipt uploaded');
+    } catch {
+      toast.error('Failed to upload receipt. Please try again.');
+    } finally {
+      setReceiptUploading(false);
+      if (receiptInputRef.current) receiptInputRef.current.value = '';
+    }
   };
 
   const validateStep = () => {
@@ -209,6 +230,7 @@ export default function ApplicationEdit() {
         permanentAddress: form.sameAsPermanent ? form.correspondenceAddress : form.permanentAddress,
         permanentCity: form.sameAsPermanent ? form.correspondenceCity : form.permanentCity,
         permanentState: form.sameAsPermanent ? form.correspondenceState : form.permanentState,
+        receiptImageUrl: form.receiptImageUrl || null,
       };
       await applicationsAPI.edit(id, payload);
       setDone(true);
@@ -520,6 +542,48 @@ export default function ApplicationEdit() {
                   value={form.clientMessage} onChange={e => set('clientMessage', e.target.value)}
                   placeholder="Any additional information or changes you'd like us to know..." />
               </div>
+              {/* Receipt upload */}
+              <div className="border rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Payment Receipt</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Upload proof of payment (image — optional but recommended)</p>
+                  </div>
+                  {form.receiptImageUrl && (
+                    <div className="flex items-center gap-1 text-green-600 text-sm font-medium">
+                      <Check size={15} /> Uploaded
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={receiptInputRef}
+                  className="hidden"
+                  onChange={handleReceiptSelect}
+                />
+                {form.receiptImageUrl ? (
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                    <FileImage size={16} className="text-green-600 flex-shrink-0" />
+                    <a href={form.receiptImageUrl} target="_blank" rel="noreferrer"
+                      className="text-blue-600 text-xs underline flex-1 truncate">View uploaded receipt</a>
+                    <button type="button" onClick={() => set('receiptImageUrl', '')}
+                      className="text-xs text-red-500 hover:text-red-700 flex-shrink-0">Remove</button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => receiptInputRef.current?.click()}
+                    disabled={receiptUploading}
+                    className="w-full border-2 border-dashed border-gray-200 rounded-lg py-3 text-sm text-gray-500 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                  >
+                    {receiptUploading
+                      ? <><Loader2 size={14} className="animate-spin" /> Uploading...</>
+                      : <><Upload size={14} /> Click to upload receipt image</>}
+                  </button>
+                )}
+              </div>
+
               <div className="border rounded-xl p-4 space-y-3">
                 <p className="text-sm font-semibold text-gray-800">Declaration</p>
                 <label className="flex items-start gap-3 cursor-pointer">

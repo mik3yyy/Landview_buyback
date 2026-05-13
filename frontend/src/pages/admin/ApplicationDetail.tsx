@@ -77,13 +77,17 @@ export default function ApplicationDetail() {
   // Pre-fill approve form from application data
   useEffect(() => {
     if (!app) return;
-    const rate = DURATION_RATES[app.duration] ?? 20;
+    const usesCustomTerms = app.hasCustomTerms && app.customDuration;
+    const duration = usesCustomTerms ? app.customDuration : app.duration;
+    const rate = usesCustomTerms
+      ? (Number(app.customInterestRate) || (DURATION_RATES[app.duration] ?? 20))
+      : (DURATION_RATES[app.duration] ?? 20);
     setApproveForm(f => ({
       ...f,
       clientName: `${app.title ? app.title + ' ' : ''}${app.surname} ${app.otherNames}`,
       realtorName: app.realtorName || '',
       realtorEmail: app.realtorEmail || '',
-      duration: app.duration,
+      duration,
       principal: String(app.principal),
       interestRate: String(rate),
       wantsUpfront: app.wantsUpfront || false,
@@ -128,7 +132,6 @@ export default function ApplicationDetail() {
   };
 
   const handleApprove = async () => {
-    if (!approveForm.plotNumber.trim()) { toast.error('Plot number is required'); return; }
     if (!approveForm.transactionDate) { toast.error('Transaction date is required'); return; }
     setActionLoading(true);
     try {
@@ -241,6 +244,36 @@ export default function ApplicationDetail() {
         </div>
       )}
 
+      {/* Payment receipt */}
+      {app.receiptImageUrl && (
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-4">
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-green-800">Payment Receipt Attached</p>
+            <p className="text-xs text-green-600 mt-0.5">Client uploaded a proof of payment with their application.</p>
+          </div>
+          <a
+            href={app.receiptImageUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="btn-secondary text-sm flex-shrink-0"
+          >
+            View Receipt
+          </a>
+        </div>
+      )}
+
+      {/* Custom terms notice */}
+      {app.hasCustomTerms && app.customDuration && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+          <p className="text-sm font-semibold text-purple-800">Custom Investment Terms</p>
+          <p className="text-xs text-purple-600 mt-1">
+            Duration: <strong>{app.customDuration}</strong>
+            {app.customInterestRate && <> · Rate: <strong>{Number(app.customInterestRate)}%</strong></>}
+            <span className="ml-1 text-purple-400">(pre-filled in the approve form below)</span>
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Personal */}
         <Section title="Personal Information" icon={<User size={16} className="text-blue-500" />}>
@@ -349,7 +382,7 @@ export default function ApplicationDetail() {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="label">Plot Number</label>
+              <label className="label">Plot Number <span className="text-gray-400 font-normal">(optional)</span></label>
               <input className="input" placeholder="e.g. A12" value={approveForm.plotNumber}
                 onChange={e => setApproveForm(f => ({ ...f, plotNumber: e.target.value }))} />
             </div>
@@ -369,14 +402,9 @@ export default function ApplicationDetail() {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Duration</label>
-              <select className="input" value={approveForm.duration}
-                onChange={e => {
-                  const rate = DURATION_RATES[e.target.value] ?? 20;
-                  setApproveForm(f => ({ ...f, duration: e.target.value, interestRate: String(rate) }));
-                }}>
-                <option value="6 months">6 Months</option>
-                <option value="12 months">12 Months</option>
-              </select>
+              <input type="text" className="input" value={approveForm.duration}
+                placeholder="e.g. 6 months, 9 months"
+                onChange={e => setApproveForm(f => ({ ...f, duration: e.target.value }))} />
             </div>
             <div>
               <label className="label">Interest Rate (%)</label>

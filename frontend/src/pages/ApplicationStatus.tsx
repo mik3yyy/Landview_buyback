@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Building2, CheckCircle, Clock, XCircle, Pencil } from 'lucide-react';
+import { Building2, CheckCircle, Clock, XCircle, Pencil, FileImage } from 'lucide-react';
 import { applicationsAPI } from '../api/client';
 import { formatCurrency } from '../utils/formatters';
 
@@ -106,6 +106,21 @@ export default function ApplicationStatus() {
                 </div>
               </div>
             </div>
+
+            {/* Payment receipt */}
+            {appData.receiptImageUrl && (
+              <div className="bg-white rounded-2xl shadow-sm border p-6 flex items-center gap-4">
+                <FileImage size={20} className="text-green-500 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800">Payment Receipt Attached</p>
+                  <p className="text-xs text-gray-400 mt-0.5">Your proof of payment was submitted with this application.</p>
+                </div>
+                <a href={appData.receiptImageUrl} target="_blank" rel="noreferrer"
+                  className="text-blue-600 text-sm font-medium hover:underline flex-shrink-0">
+                  View
+                </a>
+              </div>
+            )}
 
             {/* Edit button for pending applications */}
             {appData.status === 'pending' && (

@@ -117,6 +117,7 @@ export default function InvestmentDetail() {
 
   const days = investment.daysUntilMaturity;
   const isPendingReview = investment.status === 'pending_review';
+  const isPendingTermination = investment.status === 'pending_termination';
   const isActive = investment.status === 'active' || investment.status === 'extended';
   const canComplete = isAdminOrAbove && investment.status === 'payment_initiated';
   const canInitiate = isActive && investment.status !== 'payment_initiated';
@@ -139,15 +140,45 @@ export default function InvestmentDetail() {
     e.preventDefault();
     setActionLoading(true);
     try {
-      await investmentsAPI.terminate(id!, {
+      const res = await investmentsAPI.terminate(id!, {
         reason: terminateForm.reason || undefined,
         exitAmount: terminateForm.exitAmount || undefined,
       });
-      toast.success('Investment terminated');
+      if (res.data.pendingApproval) {
+        toast.success('Termination request submitted — awaiting super admin approval');
+      } else {
+        toast.success('Investment terminated');
+      }
       setShowTerminateModal(false);
       afterMutation();
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to terminate');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleConfirmTermination = async () => {
+    setActionLoading(true);
+    try {
+      await investmentsAPI.confirmTermination(id!);
+      toast.success('Termination confirmed');
+      afterMutation();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to confirm termination');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancelTermination = async () => {
+    setActionLoading(true);
+    try {
+      await investmentsAPI.cancelTermination(id!);
+      toast.success('Pending termination cancelled — investment restored');
+      afterMutation();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to cancel termination');
     } finally {
       setActionLoading(false);
     }
@@ -190,8 +221,40 @@ export default function InvestmentDetail() {
           </div>
         )}
 
+        {/* Pending termination banner */}
+        {isPendingTermination && (
+          <div className="flex items-center justify-between gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-orange-800">Termination Pending Super Admin Approval</p>
+              <p className="text-xs text-orange-500 mt-0.5">
+                An admin requested early termination
+                {investment.terminationReason && `: "${investment.terminationReason}"`}.
+                {investment.terminationExitAmount && ` Exit amount: ${investment.terminationExitAmount}.`}
+              </p>
+            </div>
+            {isSuperAdmin && (
+              <div className="flex gap-2 flex-shrink-0">
+                <button
+                  onClick={handleCancelTermination}
+                  disabled={actionLoading}
+                  className="btn-secondary text-sm"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmTermination}
+                  disabled={actionLoading}
+                  className="btn-danger text-sm flex items-center gap-1"
+                >
+                  <XCircle size={14} /> Confirm Terminate
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Action buttons — only shown for active investments */}
-        {!isPendingReview && (
+        {!isPendingReview && !isPendingTermination && (
           <div className="flex gap-2 flex-wrap">
             {canInitiate && (
               <button onClick={() => setShowInitiateModal(true)} disabled={actionLoading} className="btn-primary flex items-center gap-2 text-sm">
@@ -215,7 +278,7 @@ export default function InvestmentDetail() {
             )}
             {isAdminOrAbove && investment.status !== 'completed' && investment.status !== 'terminated' && (
               <button onClick={() => setShowTerminateModal(true)} className="btn-danger flex items-center gap-2 text-sm">
-                <XCircle size={15} /> Terminate
+                <XCircle size={15} /> {isSuperAdmin ? 'Terminate' : 'Request Termination'}
               </button>
             )}
             {isSuperAdmin && (
@@ -509,9 +572,13 @@ export default function InvestmentDetail() {
       {/* Terminate Modal */}
       <Modal isOpen={showTerminateModal} onClose={() => setShowTerminateModal(false)} title="Terminate Investment Early">
         <form onSubmit={handleTerminate} className="space-y-4">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
+          <div className={`border rounded-lg p-3 text-sm ${isSuperAdmin ? 'bg-red-50 border-red-200 text-red-800' : 'bg-orange-50 border-orange-200 text-orange-800'}`}>
             <p className="font-semibold">This will end the investment before its maturity date.</p>
-            <p className="text-xs mt-0.5 text-red-600">Status will be set to <strong>Terminated</strong>. This cannot be undone.</p>
+            <p className="text-xs mt-0.5">
+              {isSuperAdmin
+                ? 'Status will be set to Terminated immediately. This cannot be undone.'
+                : 'A termination request will be sent to the super admin for approval.'}
+            </p>
           </div>
           <div>
             <label className="label">Reason <span className="text-gray-400 font-normal">(optional)</span></label>
@@ -538,7 +605,9 @@ export default function InvestmentDetail() {
           <div className="flex gap-3 justify-end">
             <button type="button" onClick={() => setShowTerminateModal(false)} className="btn-secondary">Cancel</button>
             <button type="submit" className="btn-danger" disabled={actionLoading}>
-              {actionLoading ? 'Terminating...' : 'Terminate Investment'}
+              {actionLoading
+                ? (isSuperAdmin ? 'Terminating...' : 'Submitting...')
+                : (isSuperAdmin ? 'Terminate Investment' : 'Submit Termination Request')}
             </button>
           </div>
         </form>

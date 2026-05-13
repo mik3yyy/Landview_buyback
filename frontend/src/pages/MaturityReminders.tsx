@@ -48,15 +48,23 @@ interface Response {
   clientIntention: string; clientIntentionMessage?: string; clientIntentionAt?: string;
 }
 
+const DAYS_OPTIONS = [
+  { value: 7, label: 'Next 7 days' },
+  { value: 20, label: 'Next 20 days' },
+  { value: 30, label: 'Next 30 days' },
+  { value: 60, label: 'Next 60 days' },
+];
+
 export default function MaturityReminders() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sending, setSending] = useState(false);
   const [search, setSearch] = useState('');
   const [filterUnsent, setFilterUnsent] = useState(false);
+  const [daysWindow, setDaysWindow] = useState(30);
 
   const { data, loading, refreshing, error, refresh } = useBackgroundFetch<{ candidates: Candidate[]; responses: Response[] }>(
-    'reminder-candidates',
-    () => responseAPI.getReminderCandidates().then(r => r.data)
+    `reminder-candidates-${daysWindow}`,
+    () => responseAPI.getReminderCandidates(daysWindow).then(r => r.data)
   );
 
   useEffect(() => { if (error) toast.error('Failed to load reminder data'); }, [error]);
@@ -139,10 +147,30 @@ export default function MaturityReminders() {
         </button>
       </div>
 
+      {/* Days window dropdown */}
+      <div className="flex items-center gap-3">
+        <span className="text-sm text-gray-500 font-medium">Show investments maturing in:</span>
+        <div className="flex gap-2 flex-wrap">
+          {DAYS_OPTIONS.map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => { setDaysWindow(opt.value); setSelected(new Set()); }}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                daysWindow === opt.value
+                  ? 'bg-blue-600 text-white border-blue-600'
+                  : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300 hover:text-blue-600'
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Maturing (4 weeks)', value: candidates.length, color: 'text-blue-700', bg: 'bg-blue-50' },
+          { label: `Maturing (${daysWindow} days)`, value: candidates.length, color: 'text-blue-700', bg: 'bg-blue-50' },
           { label: 'Reminder Sent', value: sentCount, color: 'text-green-700', bg: 'bg-green-50' },
           { label: 'Not Yet Sent', value: unsentCount, color: 'text-orange-700', bg: 'bg-orange-50' },
           { label: 'Responses Received', value: responses.length, color: 'text-purple-700', bg: 'bg-purple-50' },
@@ -251,7 +279,7 @@ export default function MaturityReminders() {
 
         {candidates.length === 0 ? (
           <p className="text-gray-400 text-sm text-center py-8">
-            No investments maturing in the next 4 weeks with an email address on file.
+            No investments maturing in the next {daysWindow} days with an email address on file.
           </p>
         ) : (
           <>

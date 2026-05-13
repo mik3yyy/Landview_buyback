@@ -20,6 +20,7 @@ enum InvestmentStatus {
   extended
   payment_initiated
   terminated
+  pending_termination
 }
 
 enum ActionType {
@@ -104,6 +105,7 @@ model Investment {
   terminationExitAmount Decimal?       @db.Decimal(15, 2)
   terminatedAt        DateTime?
   terminatedBy        String?
+  previousStatus      String?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 

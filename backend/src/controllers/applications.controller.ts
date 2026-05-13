@@ -107,6 +107,8 @@ export async function getApplicationStatus(req: Request, res: Response) {
       paymentMode: true, accountName: true, accountNumber: true, bankName: true,
       sourceOfFunds: true, realtorName: true, realtorEmail: true, realtorPhone: true,
       agreedToTerms: true, clientMessage: true,
+      hasCustomTerms: true, customDuration: true, customInterestRate: true,
+      receiptImageUrl: true,
     },
   });
   if (!application) return res.status(404).json({ error: 'Application not found' });

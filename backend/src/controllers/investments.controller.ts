@@ -375,29 +375,109 @@ export async function terminateInvestment(req: AuthRequest, res: Response) {
   if (!existing) return res.status(404).json({ error: 'Investment not found' });
   if (existing.status === 'completed') return res.status(400).json({ error: 'Cannot terminate a completed investment' });
   if (existing.status === 'terminated') return res.status(400).json({ error: 'Investment is already terminated' });
+  if (existing.status === 'pending_termination') return res.status(400).json({ error: 'Termination is already pending super admin approval' });
 
   const exitAmountNum = exitAmount ? parseFloat(exitAmount) : null;
+  const isSuperAdmin = req.user!.role === 'super_admin';
 
+  if (isSuperAdmin) {
+    // Super admin terminates directly
+    const updated = await prisma.investment.update({
+      where: { id },
+      data: {
+        status: 'terminated',
+        terminationReason: reason || null,
+        terminationExitAmount: exitAmountNum,
+        terminatedAt: new Date(),
+        terminatedBy: req.user!.id,
+        previousStatus: null,
+      },
+    });
+    await createAuditLog({
+      userId: req.user!.id,
+      actionType: 'TERMINATE_INVESTMENT',
+      entityType: 'investment',
+      entityId: id,
+      description: `Investment terminated early${reason ? `: ${reason}` : ''}${exitAmountNum ? ` — exit amount ₦${exitAmountNum.toLocaleString()}` : ''}`,
+      req,
+    });
+    return res.json(updated);
+  }
+
+  // Non-super-admin: queue for super admin approval
   const updated = await prisma.investment.update({
     where: { id },
     data: {
-      status: 'terminated',
+      previousStatus: existing.status,
+      status: 'pending_termination',
       terminationReason: reason || null,
       terminationExitAmount: exitAmountNum,
-      terminatedAt: new Date(),
       terminatedBy: req.user!.id,
     },
   });
-
   await createAuditLog({
     userId: req.user!.id,
     actionType: 'TERMINATE_INVESTMENT',
     entityType: 'investment',
     entityId: id,
-    description: `Investment terminated early${reason ? `: ${reason}` : ''}${exitAmountNum ? ` — exit amount ₦${exitAmountNum.toLocaleString()}` : ''}`,
+    description: `Termination requested (awaiting super admin approval)${reason ? `: ${reason}` : ''}`,
     req,
   });
+  return res.json({ ...updated, pendingApproval: true });
+}
 
+// POST /api/investments/:id/confirm-termination — super admin confirms a pending termination
+export async function confirmTermination(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const existing = await prisma.investment.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Investment not found' });
+  if (existing.status !== 'pending_termination') return res.status(400).json({ error: 'Investment is not pending termination' });
+
+  const updated = await prisma.investment.update({
+    where: { id },
+    data: {
+      status: 'terminated',
+      terminatedAt: new Date(),
+      previousStatus: null,
+    },
+  });
+  await createAuditLog({
+    userId: req.user!.id,
+    actionType: 'TERMINATE_INVESTMENT',
+    entityType: 'investment',
+    entityId: id,
+    description: `Termination confirmed by super admin`,
+    req,
+  });
+  return res.json(updated);
+}
+
+// POST /api/investments/:id/cancel-termination — super admin cancels a pending termination
+export async function cancelTermination(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const existing = await prisma.investment.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Investment not found' });
+  if (existing.status !== 'pending_termination') return res.status(400).json({ error: 'Investment is not pending termination' });
+
+  const revertTo = (existing.previousStatus || 'active') as any;
+  const updated = await prisma.investment.update({
+    where: { id },
+    data: {
+      status: revertTo,
+      terminationReason: null,
+      terminationExitAmount: null,
+      terminatedBy: null,
+      previousStatus: null,
+    },
+  });
+  await createAuditLog({
+    userId: req.user!.id,
+    actionType: 'UPDATE_INVESTMENT',
+    entityType: 'investment',
+    entityId: id,
+    description: `Pending termination cancelled — reverted to ${revertTo}`,
+    req,
+  });
   return res.json(updated);
 }
 
@@ -631,8 +711,9 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
 
 // GET /api/investments/reminder-candidates
 export async function getReminderCandidates(req: AuthRequest, res: Response) {
+  const days = Math.min(Math.max(parseInt((req.query as any).days as string) || 30, 1), 365);
   const today = new Date(); today.setHours(0, 0, 0, 0);
-  const fourWeeksOut = new Date(today); fourWeeksOut.setDate(today.getDate() + 28); fourWeeksOut.setHours(23, 59, 59, 999);
+  const fourWeeksOut = new Date(today); fourWeeksOut.setDate(today.getDate() + days); fourWeeksOut.setHours(23, 59, 59, 999);
 
   const [candidates, responses] = await Promise.all([
     prisma.investment.findMany({
