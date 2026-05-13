@@ -409,7 +409,7 @@ export default function Dashboard() {
         defaultOpen
         viewAllTo="/investments"
       >
-        <InvestmentTable rows={stats?.investmentsToday ?? []} emptyMsg="No investments created or maturing today" />
+        <InvestmentTable rows={stats?.investmentsToday ?? []} emptyMsg="No investments with a transaction date of today" />
       </CollapsibleSection>
 
       {/* Maturing in 7 Days */}

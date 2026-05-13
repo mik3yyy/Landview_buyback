@@ -621,8 +621,8 @@ export async function getDashboardStats(req: AuthRequest, res: Response) {
     prisma.investment.aggregate({ where: { status: activeStatuses }, _sum: { maturityAmount: true } }),
     prisma.investment.findMany({ take: 5, orderBy: { createdAt: 'desc' }, select: investmentSelect }),
     prisma.investment.findMany({
-      where: { OR: [{ transactionDate: { gte: today, lte: todayEnd } }, { maturityDate: { gte: today, lte: todayEnd } }] },
-      orderBy: { maturityDate: 'asc' },
+      where: { transactionDate: { gte: today, lte: todayEnd } },
+      orderBy: { createdAt: 'desc' },
       select: { ...investmentSelect, transactionDate: true },
     }),
     prisma.investment.findMany({
