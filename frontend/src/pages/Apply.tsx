@@ -164,6 +164,12 @@ export default function Apply() {
   const [receiptUrl, setReceiptUrl] = useState('');
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
+  // Passport photo upload
+  const passportInputRef = useRef<HTMLInputElement>(null);
+  const [passportFile, setPassportFile] = useState<File | null>(null);
+  const [passportUrl, setPassportUrl] = useState('');
+  const [uploadingPassport, setUploadingPassport] = useState(false);
+
   const set = (key: string, value: any) => setForm(f => ({ ...f, [key]: value }));
   const inp = (key: string) => ({ value: form[key], onChange: (e: any) => set(key, e.target.value), className: inputCls });
 
@@ -197,6 +203,26 @@ export default function Apply() {
       setReceiptFile(null);
     } finally {
       setUploadingReceipt(false);
+    }
+  };
+
+  const handlePassportSelect = async (file: File) => {
+    if (!['image/jpeg', 'image/png', 'image/jpg', 'image/webp'].includes(file.type)) {
+      toast.error('Only JPG, PNG, or WebP images are allowed for passport photo');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) { toast.error('Passport photo must be under 5MB'); return; }
+    setPassportFile(file);
+    setUploadingPassport(true);
+    try {
+      const res = await uploadAPI.receipt(file);
+      setPassportUrl(res.data.url);
+      toast.success('Passport photo uploaded!');
+    } catch {
+      toast.error('Failed to upload passport photo. You can continue without it.');
+      setPassportFile(null);
+    } finally {
+      setUploadingPassport(false);
     }
   };
 
@@ -258,6 +284,7 @@ export default function Apply() {
         customDuration: hasCustomTerms && customMonths ? `${customMonths} months` : null,
         customInterestRate: hasCustomTerms && customRate ? customRate : null,
         receiptImageUrl: receiptUrl || null,
+        passportPhotoUrl: passportUrl || null,
       };
       const res = await applicationsAPI.submit(payload);
       setSubmitted(res.data.id);
@@ -638,6 +665,48 @@ export default function Apply() {
                 )}
               </div>
 
+              {/* Passport photo upload */}
+              <div className={`border-2 rounded-xl p-4 ${passportUrl ? 'border-green-400 bg-green-50' : 'border-dashed border-gray-300 bg-gray-50'}`}>
+                <div className="flex items-start gap-3 mb-3">
+                  <ImageIcon size={20} className={passportUrl ? 'text-green-600 flex-shrink-0 mt-0.5' : 'text-gray-400 flex-shrink-0 mt-0.5'} />
+                  <div>
+                    <p className="text-sm font-semibold text-gray-800">
+                      Passport Photograph <span className="text-orange-500 font-normal text-xs">(recommended)</span>
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Upload a clear passport-size photo. JPG or PNG, max 5MB.
+                    </p>
+                  </div>
+                </div>
+                <input
+                  ref={passportInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/jpg,image/webp"
+                  className="hidden"
+                  onChange={e => e.target.files?.[0] && handlePassportSelect(e.target.files[0])}
+                />
+                {passportUrl ? (
+                  <div className="flex items-center gap-3">
+                    <CheckCircle size={16} className="text-green-600" />
+                    <span className="text-sm text-green-700 font-medium flex-1 truncate">{passportFile?.name || 'Photo uploaded'}</span>
+                    <button type="button" onClick={() => { setPassportFile(null); setPassportUrl(''); }} className="text-red-500 hover:text-red-700">
+                      <X size={16} />
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => passportInputRef.current?.click()}
+                    disabled={uploadingPassport}
+                    className="flex items-center gap-2 text-sm text-blue-600 font-medium border border-blue-200 bg-white hover:bg-blue-50 px-4 py-2 rounded-lg transition-colors"
+                  >
+                    {uploadingPassport
+                      ? <><div className="w-4 h-4 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" /> Uploading...</>
+                      : <><Upload size={15} /> Attach Passport Photo</>}
+                  </button>
+                )}
+              </div>
+
               <div>
                 <p className="text-sm font-medium text-gray-700 mb-2">Source of Funds</p>
                 <p className="text-xs text-gray-500 mb-3">Select all that apply</p>
@@ -683,6 +752,7 @@ export default function Apply() {
                 <p className="text-gray-700">Phone: <strong>{form.phoneNumber}</strong></p>
                 <p className="text-gray-700">Duration: <strong>{effectiveDuration}</strong>{hasCustomTerms && <span className="text-purple-600 text-xs ml-1">(custom)</span>} · Principal: <strong>{formatCurrency(principal)}</strong></p>
                 <p className="text-gray-700">Rate: <strong>{effectiveRate}%</strong> · Expected at maturity: <strong className="text-blue-700">{formatCurrency(maturityAmount)}</strong></p>
+                {passportUrl && <p className="text-gray-700 flex items-center gap-1"><CheckCircle size={13} className="text-green-500" /> <span className="text-green-700">Passport photo attached</span></p>}
                 {receiptUrl && <p className="text-gray-700 flex items-center gap-1"><CheckCircle size={13} className="text-green-500" /> <span className="text-green-700">Payment receipt attached</span></p>}
               </div>
             </div>

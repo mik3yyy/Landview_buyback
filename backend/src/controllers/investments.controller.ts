@@ -292,36 +292,29 @@ export async function updateInvestment(req: AuthRequest, res: Response) {
   return res.json({ ...updated, daysUntilMaturity: calculateDaysUntilMaturity(updated.maturityDate) });
 }
 
-export async function extendInvestment(req: AuthRequest, res: Response) {
-  const { id } = req.params;
-  const { new_duration, new_interest_rate, new_principal } = req.body;
-
-  const existing = await prisma.investment.findUnique({ where: { id } });
-  if (!existing) return res.status(404).json({ error: 'Investment not found' });
-  if (existing.status === 'completed') return res.status(400).json({ error: 'Cannot extend completed investment' });
-
+async function applyExtension(existing: any, extensionData: any, userId: string) {
+  const { new_duration, new_interest_rate, new_principal } = extensionData;
   const newInterestRate = new_interest_rate ? parseFloat(new_interest_rate) : Number(existing.interestRate);
-  // Support partial withdrawal: new_principal overrides existing principal
   const principalToUse = new_principal ? parseFloat(new_principal) : Number(existing.principal);
   const newMaturityDate = calculateMaturityDate(new Date(), new_duration);
   const newRoi = calculateROI(principalToUse, newInterestRate);
   const newMaturityAmount = calculateMaturityAmount(principalToUse, newRoi, 0);
 
-  const [extension, updated] = await prisma.$transaction([
+  const [, updated] = await prisma.$transaction([
     prisma.investmentExtension.create({
       data: {
-        investmentId: id,
+        investmentId: existing.id,
         previousDuration: existing.duration,
         newDuration: new_duration,
         previousMaturityDate: existing.maturityDate,
         newMaturityDate,
         previousInterestRate: existing.interestRate,
-        newInterestRate: newInterestRate,
-        extendedBy: req.user!.id,
+        newInterestRate,
+        extendedBy: userId,
       },
     }),
     prisma.investment.update({
-      where: { id },
+      where: { id: existing.id },
       data: {
         duration: new_duration,
         principal: principalToUse,
@@ -334,37 +327,112 @@ export async function extendInvestment(req: AuthRequest, res: Response) {
         clientIntentionMessage: null,
         clientIntentionAt: null,
         status: 'extended',
+        previousStatus: null,
+        pendingExtensionData: undefined,
       },
     }),
   ]);
+
+  return { updated, newMaturityDate, newInterestRate, newMaturityAmount, new_duration };
+}
+
+export async function extendInvestment(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const { new_duration, new_interest_rate, new_principal } = req.body;
+
+  const existing = await prisma.investment.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Investment not found' });
+  if (['completed', 'terminated', 'pending_extension', 'pending_deletion'].includes(existing.status as string)) {
+    return res.status(400).json({ error: 'Cannot extend investment in its current status' });
+  }
+
+  const isSuperAdmin = req.user!.role === 'super_admin';
+
+  if (isSuperAdmin) {
+    const { updated, newMaturityDate, newInterestRate, newMaturityAmount } = await applyExtension(existing, req.body, req.user!.id);
+    await createAuditLog({
+      userId: req.user!.id,
+      actionType: 'EXTEND_INVESTMENT',
+      entityType: 'investment',
+      entityId: id,
+      oldValues: { duration: existing.duration, maturityDate: existing.maturityDate },
+      newValues: { newDuration: new_duration, newMaturityDate },
+      req,
+    });
+    if (existing.clientEmail) {
+      sendExtensionConfirmation({
+        clientName: existing.clientName, clientEmail: existing.clientEmail, plotNumber: existing.plotNumber,
+        newMaturityDate, newDuration: new_duration, newInterestRate, newMaturityAmount,
+      }).catch(err => console.error('Failed to send extension email:', err));
+    }
+    return res.json({ ...updated, daysUntilMaturity: calculateDaysUntilMaturity(updated.maturityDate) });
+  }
+
+  // Non-super-admin: queue for super admin approval
+  const updated = await prisma.investment.update({
+    where: { id },
+    data: {
+      previousStatus: existing.status,
+      status: 'pending_extension',
+      pendingExtensionData: { new_duration, new_interest_rate: new_interest_rate || null, new_principal: new_principal || null },
+    },
+  });
+  await createAuditLog({
+    userId: req.user!.id,
+    actionType: 'EXTEND_INVESTMENT',
+    entityType: 'investment',
+    entityId: id,
+    description: `Extension requested (awaiting super admin approval) — ${new_duration}`,
+    req,
+  });
+  return res.json({ ...updated, pendingApproval: true });
+}
+
+// POST /api/investments/:id/confirm-extension — super admin confirms a pending extension
+export async function confirmExtension(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const existing = await prisma.investment.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Investment not found' });
+  if (existing.status !== 'pending_extension') return res.status(400).json({ error: 'Investment is not pending extension' });
+  if (!existing.pendingExtensionData) return res.status(400).json({ error: 'No extension data found' });
+
+  const extensionData = existing.pendingExtensionData as any;
+  const { updated, newMaturityDate, newInterestRate, newMaturityAmount } = await applyExtension(existing, extensionData, req.user!.id);
 
   await createAuditLog({
     userId: req.user!.id,
     actionType: 'EXTEND_INVESTMENT',
     entityType: 'investment',
     entityId: id,
-    oldValues: { duration: existing.duration, maturityDate: existing.maturityDate },
-    newValues: { newDuration: new_duration, newMaturityDate },
+    description: `Extension confirmed by super admin — ${extensionData.new_duration}`,
     req,
   });
-
   if (existing.clientEmail) {
-    try {
-      await sendExtensionConfirmation({
-        clientName: existing.clientName,
-        clientEmail: existing.clientEmail,
-        plotNumber: existing.plotNumber,
-        newMaturityDate,
-        newDuration: new_duration,
-        newInterestRate,
-        newMaturityAmount,
-      });
-    } catch (err) {
-      console.error('Failed to send extension email:', err);
-    }
+    sendExtensionConfirmation({
+      clientName: existing.clientName, clientEmail: existing.clientEmail, plotNumber: existing.plotNumber,
+      newMaturityDate, newDuration: extensionData.new_duration, newInterestRate, newMaturityAmount,
+    }).catch(err => console.error('Failed to send extension email:', err));
   }
-
   return res.json({ ...updated, daysUntilMaturity: calculateDaysUntilMaturity(updated.maturityDate) });
+}
+
+// POST /api/investments/:id/cancel-extension — super admin cancels a pending extension
+export async function cancelExtension(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const existing = await prisma.investment.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Investment not found' });
+  if (existing.status !== 'pending_extension') return res.status(400).json({ error: 'Investment is not pending extension' });
+
+  const revertTo = (existing.previousStatus || 'active') as any;
+  const updated = await prisma.investment.update({
+    where: { id },
+    data: { status: revertTo, previousStatus: null, pendingExtensionData: undefined },
+  });
+  await createAuditLog({
+    userId: req.user!.id, actionType: 'UPDATE_INVESTMENT', entityType: 'investment', entityId: id,
+    description: `Pending extension cancelled — reverted to ${revertTo}`, req,
+  });
+  return res.json(updated);
 }
 
 export async function terminateInvestment(req: AuthRequest, res: Response) {
@@ -551,17 +619,65 @@ export async function deleteInvestment(req: AuthRequest, res: Response) {
   const existing = await prisma.investment.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'Investment not found' });
 
+  const isSuperAdmin = req.user!.role === 'super_admin';
+
+  if (isSuperAdmin) {
+    await createAuditLog({
+      userId: req.user!.id, actionType: 'DELETE_INVESTMENT', entityType: 'investment', entityId: id,
+      oldValues: { clientName: existing.clientName, plotNumber: existing.plotNumber, principal: existing.principal },
+      req,
+    });
+    await prisma.investment.delete({ where: { id } });
+    return res.json({ message: 'Investment deleted' });
+  }
+
+  // Non-super-admin: queue deletion for super admin approval
+  if (existing.status === 'pending_deletion') return res.status(400).json({ error: 'Deletion is already pending super admin approval' });
+  const updated = await prisma.investment.update({
+    where: { id },
+    data: { previousStatus: existing.status, status: 'pending_deletion' },
+  });
   await createAuditLog({
-    userId: req.user!.id,
-    actionType: 'DELETE_INVESTMENT',
-    entityType: 'investment',
-    entityId: id,
+    userId: req.user!.id, actionType: 'DELETE_INVESTMENT', entityType: 'investment', entityId: id,
+    description: `Deletion requested (awaiting super admin approval)`, req,
+  });
+  return res.json({ ...updated, pendingApproval: true });
+}
+
+// POST /api/investments/:id/confirm-deletion — super admin confirms and deletes
+export async function confirmDeletion(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const existing = await prisma.investment.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Investment not found' });
+  if (existing.status !== 'pending_deletion') return res.status(400).json({ error: 'Investment is not pending deletion' });
+
+  await createAuditLog({
+    userId: req.user!.id, actionType: 'DELETE_INVESTMENT', entityType: 'investment', entityId: id,
     oldValues: { clientName: existing.clientName, plotNumber: existing.plotNumber, principal: existing.principal },
+    description: 'Deletion confirmed by super admin',
     req,
   });
-
   await prisma.investment.delete({ where: { id } });
   return res.json({ message: 'Investment deleted' });
+}
+
+// POST /api/investments/:id/cancel-deletion — super admin cancels pending deletion
+export async function cancelDeletion(req: AuthRequest, res: Response) {
+  const { id } = req.params;
+  const existing = await prisma.investment.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ error: 'Investment not found' });
+  if (existing.status !== 'pending_deletion') return res.status(400).json({ error: 'Investment is not pending deletion' });
+
+  const revertTo = (existing.previousStatus || 'active') as any;
+  const updated = await prisma.investment.update({
+    where: { id },
+    data: { status: revertTo, previousStatus: null },
+  });
+  await createAuditLog({
+    userId: req.user!.id, actionType: 'UPDATE_INVESTMENT', entityType: 'investment', entityId: id,
+    description: `Pending deletion cancelled — reverted to ${revertTo}`, req,
+  });
+  return res.json(updated);
 }
 
 export async function getDashboardStats(req: AuthRequest, res: Response) {
@@ -955,6 +1071,7 @@ export async function findDuplicates(req: AuthRequest, res: Response) {
 }
 
 export async function exportInvestments(req: AuthRequest, res: Response) {
+  const XLSX = await import('xlsx');
   const { status } = req.query as Record<string, string>;
   const where: any = {};
   if (status) where.status = status;
@@ -967,8 +1084,8 @@ export async function exportInvestments(req: AuthRequest, res: Response) {
 
   const headers = [
     'ID', 'Client Name', 'Plot Number', 'Transaction Date', 'Duration',
-    'Maturity Date', 'Principal', 'Interest Rate', 'ROI', 'Upfront Payment',
-    'Maturity Amount', 'Status', 'Client Email', 'Realtor Name', 'Realtor Email',
+    'Maturity Date', 'Principal (₦)', 'Interest Rate (%)', 'ROI (₦)', 'Upfront Payment (₦)',
+    'Maturity Amount (₦)', 'Status', 'Client Email', 'Realtor Name', 'Realtor Email',
     'Created By', 'Created At',
   ];
 
@@ -992,9 +1109,21 @@ export async function exportInvestments(req: AuthRequest, res: Response) {
     inv.createdAt.toISOString(),
   ]);
 
-  const csvContent = [headers.join(','), ...rows.map(r => r.map(v => `"${v}"`).join(','))].join('\n');
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
 
-  res.setHeader('Content-Type', 'text/csv');
-  res.setHeader('Content-Disposition', 'attachment; filename=investments.csv');
-  return res.send(csvContent);
+  // Set column widths
+  ws['!cols'] = [
+    { wch: 38 }, { wch: 28 }, { wch: 14 }, { wch: 16 }, { wch: 12 },
+    { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 },
+    { wch: 18 }, { wch: 20 }, { wch: 28 }, { wch: 22 }, { wch: 28 },
+    { wch: 22 }, { wch: 24 },
+  ];
+
+  XLSX.utils.book_append_sheet(wb, ws, 'Investments');
+  const buf = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', 'attachment; filename=investments.xlsx');
+  return res.send(buf);
 }

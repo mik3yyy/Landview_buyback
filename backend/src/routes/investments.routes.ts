@@ -1,9 +1,11 @@
 import { Router } from 'express';
 import {
   listInvestments, getInvestment, createInvestment, updateInvestment, approveInvestment,
-  extendInvestment, terminateInvestment, confirmTermination, cancelTermination,
+  extendInvestment, confirmExtension, cancelExtension,
+  terminateInvestment, confirmTermination, cancelTermination,
+  deleteInvestment, confirmDeletion, cancelDeletion,
   markPaymentInitiated, markPaymentCompleted,
-  deleteInvestment, getDashboardStats, exportInvestments,
+  getDashboardStats, exportInvestments,
   bulkCreateInvestments, findDuplicates,
   sendMaturityReminders, getReminderCandidates, getInvestmentByToken, submitClientIntention, markUpfrontPaid,
 } from '../controllers/investments.controller';
@@ -29,11 +31,15 @@ router.get('/:id', isAnyRole, getInvestment);
 router.post('/', isAnyRole, createInvestment);
 router.put('/:id', isAdminOrAbove, updateInvestment);
 router.delete('/:id', isAdminOrAbove, deleteInvestment);
+router.post('/:id/confirm-deletion', isSuperAdmin, confirmDeletion);
+router.post('/:id/cancel-deletion', isSuperAdmin, cancelDeletion);
 router.post('/:id/approve', isSuperAdmin, approveInvestment);
 router.post('/:id/extend', isAnyRole, extendInvestment);
 router.post('/:id/terminate', isAdminOrAbove, terminateInvestment);
 router.post('/:id/confirm-termination', isSuperAdmin, confirmTermination);
 router.post('/:id/cancel-termination', isSuperAdmin, cancelTermination);
+router.post('/:id/confirm-extension', isSuperAdmin, confirmExtension);
+router.post('/:id/cancel-extension', isSuperAdmin, cancelExtension);
 router.post('/:id/mark-payment-initiated', isAnyRole, markPaymentInitiated);
 router.post('/:id/mark-payment-completed', isAdminOrAbove, markPaymentCompleted);
 router.post('/:id/mark-upfront-paid', isAdminOrAbove, markUpfrontPaid);

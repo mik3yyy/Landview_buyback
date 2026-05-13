@@ -21,6 +21,8 @@ enum InvestmentStatus {
   payment_initiated
   terminated
   pending_termination
+  pending_extension
+  pending_deletion
 }
 
 enum ActionType {
@@ -106,6 +108,7 @@ model Investment {
   terminatedAt        DateTime?
   terminatedBy        String?
   previousStatus      String?
+  pendingExtensionData Json?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 
@@ -202,6 +205,7 @@ model ClientApplication {
 
   // Payment receipt image (Cloudinary URL)
   receiptImageUrl     String?
+  passportPhotoUrl    String?
 
   // Status workflow
   status              ApplicationStatus @default(pending)

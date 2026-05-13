@@ -171,7 +171,7 @@ export default function Investments() {
       const params: Record<string, string> = {};
       if (status) params.status = status;
       const res = await investmentsAPI.export(params);
-      downloadBlob(res.data, 'investments.csv');
+      downloadBlob(res.data, 'investments.xlsx');
     } catch {
       toast.error('Export failed');
     }

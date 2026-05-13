@@ -89,6 +89,7 @@ export default function ApplicationEdit() {
     agreedToTerms: false,
     clientMessage: '',
     receiptImageUrl: '',
+    passportPhotoUrl: '',
   });
 
   useEffect(() => {
@@ -149,6 +150,7 @@ export default function ApplicationEdit() {
           agreedToTerms: d.agreedToTerms || false,
           clientMessage: d.clientMessage || '',
           receiptImageUrl: d.receiptImageUrl || '',
+          passportPhotoUrl: d.passportPhotoUrl || '',
         });
       })
       .catch(() => toast.error('Application not found'))
@@ -542,6 +544,52 @@ export default function ApplicationEdit() {
                   value={form.clientMessage} onChange={e => set('clientMessage', e.target.value)}
                   placeholder="Any additional information or changes you'd like us to know..." />
               </div>
+              {/* Passport photo upload */}
+              <div className="border rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-700">Passport Photograph</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Upload a clear passport-size photo (optional, JPG/PNG, max 5MB)</p>
+                  </div>
+                  {form.passportPhotoUrl && (
+                    <div className="flex items-center gap-1 text-green-600 text-sm font-medium">
+                      <Check size={15} /> Uploaded
+                    </div>
+                  )}
+                </div>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/jpg,image/webp"
+                  className="hidden"
+                  onChange={async e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    setReceiptUploading(true);
+                    try {
+                      const res = await uploadAPI.receipt(file);
+                      set('passportPhotoUrl', res.data.url);
+                      toast.success('Passport photo uploaded');
+                    } catch { toast.error('Failed to upload passport photo'); }
+                    finally { setReceiptUploading(false); e.target.value = ''; }
+                  }}
+                  id="passport-upload-edit"
+                />
+                {form.passportPhotoUrl ? (
+                  <div className="flex items-center gap-3 bg-green-50 border border-green-200 rounded-lg px-3 py-2">
+                    <FileImage size={16} className="text-green-600 flex-shrink-0" />
+                    <a href={form.passportPhotoUrl} target="_blank" rel="noreferrer"
+                      className="text-blue-600 text-xs underline flex-1 truncate">View passport photo</a>
+                    <button type="button" onClick={() => set('passportPhotoUrl', '')}
+                      className="text-xs text-red-500 hover:text-red-700 flex-shrink-0">Remove</button>
+                  </div>
+                ) : (
+                  <label htmlFor="passport-upload-edit"
+                    className="w-full border-2 border-dashed border-gray-200 rounded-lg py-3 text-sm text-gray-500 hover:border-blue-300 hover:text-blue-500 transition-colors flex items-center justify-center gap-2 cursor-pointer">
+                    <Upload size={14} /> Click to upload passport photo
+                  </label>
+                )}
+              </div>
+
               {/* Receipt upload */}
               <div className="border rounded-xl p-4 space-y-3">
                 <div className="flex items-center justify-between">

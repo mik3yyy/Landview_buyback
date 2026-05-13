@@ -244,6 +244,19 @@ export default function ApplicationDetail() {
         </div>
       )}
 
+      {/* Passport photo */}
+      {app.passportPhotoUrl && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-4">
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-blue-800">Passport Photo Attached</p>
+            <p className="text-xs text-blue-600 mt-0.5">Client uploaded a passport photograph with their application.</p>
+          </div>
+          <a href={app.passportPhotoUrl} target="_blank" rel="noreferrer" className="btn-secondary text-sm flex-shrink-0">
+            View Photo
+          </a>
+        </div>
+      )}
+
       {/* Payment receipt */}
       {app.receiptImageUrl && (
         <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center gap-4">

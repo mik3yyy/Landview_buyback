@@ -62,6 +62,7 @@ export async function submitApplication(req: Request, res: Response) {
         customDuration: data.customDuration || null,
         customInterestRate: data.customInterestRate ? parseFloat(data.customInterestRate) : null,
         receiptImageUrl: data.receiptImageUrl || null,
+        passportPhotoUrl: data.passportPhotoUrl || null,
         status: 'pending',
       },
     });
@@ -108,7 +109,7 @@ export async function getApplicationStatus(req: Request, res: Response) {
       sourceOfFunds: true, realtorName: true, realtorEmail: true, realtorPhone: true,
       agreedToTerms: true, clientMessage: true,
       hasCustomTerms: true, customDuration: true, customInterestRate: true,
-      receiptImageUrl: true,
+      receiptImageUrl: true, passportPhotoUrl: true,
     },
   });
   if (!application) return res.status(404).json({ error: 'Application not found' });
@@ -429,5 +430,6 @@ function buildUpdateData(data: any) {
     customDuration: data.customDuration || null,
     customInterestRate: data.customInterestRate ? parseFloat(data.customInterestRate) : null,
     receiptImageUrl: data.receiptImageUrl || null,
+    passportPhotoUrl: data.passportPhotoUrl || null,
   };
 }

@@ -107,6 +107,21 @@ export default function ApplicationStatus() {
               </div>
             </div>
 
+            {/* Passport photo */}
+            {appData.passportPhotoUrl && (
+              <div className="bg-white rounded-2xl shadow-sm border p-6 flex items-center gap-4">
+                <FileImage size={20} className="text-blue-500 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800">Passport Photo Attached</p>
+                  <p className="text-xs text-gray-400 mt-0.5">A passport photograph was submitted with this application.</p>
+                </div>
+                <a href={appData.passportPhotoUrl} target="_blank" rel="noreferrer"
+                  className="text-blue-600 text-sm font-medium hover:underline flex-shrink-0">
+                  View
+                </a>
+              </div>
+            )}
+
             {/* Payment receipt */}
             {appData.receiptImageUrl && (
               <div className="bg-white rounded-2xl shadow-sm border p-6 flex items-center gap-4">

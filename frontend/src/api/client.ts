@@ -46,6 +46,10 @@ export const investmentsAPI = {
   terminate: (id: string, data: { reason?: string; exitAmount?: string }) => api.post(`/investments/${id}/terminate`, data),
   confirmTermination: (id: string) => api.post(`/investments/${id}/confirm-termination`),
   cancelTermination: (id: string) => api.post(`/investments/${id}/cancel-termination`),
+  confirmExtension: (id: string) => api.post(`/investments/${id}/confirm-extension`),
+  cancelExtension: (id: string) => api.post(`/investments/${id}/cancel-extension`),
+  confirmDeletion: (id: string) => api.post(`/investments/${id}/confirm-deletion`),
+  cancelDeletion: (id: string) => api.post(`/investments/${id}/cancel-deletion`),
   dashboard: () => api.get('/investments/dashboard'),
   export: (params?: Record<string, string>) =>
     api.get('/investments/export', { params, responseType: 'blob' }),

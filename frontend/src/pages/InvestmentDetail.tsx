@@ -87,8 +87,12 @@ export default function InvestmentDetail() {
     e.preventDefault();
     setActionLoading(true);
     try {
-      await investmentsAPI.extend(id!, extendForm);
-      toast.success('Investment extended successfully');
+      const res = await investmentsAPI.extend(id!, extendForm);
+      if (res.data.pendingApproval) {
+        toast.success('Extension request submitted — awaiting super admin approval');
+      } else {
+        toast.success('Investment extended successfully');
+      }
       setShowExtendModal(false);
       afterMutation();
     } catch (err: any) {
@@ -101,11 +105,17 @@ export default function InvestmentDetail() {
   const handleDelete = async () => {
     setActionLoading(true);
     try {
-      await investmentsAPI.delete(id!);
-      toast.success('Investment deleted');
-      clearCache('investments:');
-      invalidateCache('dashboard');
-      navigate('/investments');
+      const res = await investmentsAPI.delete(id!);
+      if (res.data.pendingApproval) {
+        toast.success('Deletion request submitted — awaiting super admin approval');
+        setShowDeleteModal(false);
+        afterMutation();
+      } else {
+        toast.success('Investment deleted');
+        clearCache('investments:');
+        invalidateCache('dashboard');
+        navigate('/investments');
+      }
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to delete');
       setActionLoading(false);
@@ -118,9 +128,12 @@ export default function InvestmentDetail() {
   const days = investment.daysUntilMaturity;
   const isPendingReview = investment.status === 'pending_review';
   const isPendingTermination = investment.status === 'pending_termination';
+  const isPendingExtension = investment.status === 'pending_extension';
+  const isPendingDeletion = investment.status === 'pending_deletion';
   const isActive = investment.status === 'active' || investment.status === 'extended';
   const canComplete = isAdminOrAbove && investment.status === 'payment_initiated';
   const canInitiate = isActive && investment.status !== 'payment_initiated';
+  const isAnyPendingState = isPendingReview || isPendingTermination || isPendingExtension || isPendingDeletion;
 
   const handleApproveInvestment = async () => {
     setActionLoading(true);
@@ -179,6 +192,59 @@ export default function InvestmentDetail() {
       afterMutation();
     } catch (err: any) {
       toast.error(err.response?.data?.error || 'Failed to cancel termination');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleConfirmExtension = async () => {
+    setActionLoading(true);
+    try {
+      await investmentsAPI.confirmExtension(id!);
+      toast.success('Extension confirmed — investment extended');
+      afterMutation();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to confirm extension');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancelExtension = async () => {
+    setActionLoading(true);
+    try {
+      await investmentsAPI.cancelExtension(id!);
+      toast.success('Pending extension cancelled — investment restored');
+      afterMutation();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to cancel extension');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleConfirmDeletion = async () => {
+    setActionLoading(true);
+    try {
+      await investmentsAPI.confirmDeletion(id!);
+      toast.success('Investment deleted');
+      clearCache('investments:');
+      invalidateCache('dashboard');
+      navigate('/investments');
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to delete');
+      setActionLoading(false);
+    }
+  };
+
+  const handleCancelDeletion = async () => {
+    setActionLoading(true);
+    try {
+      await investmentsAPI.cancelDeletion(id!);
+      toast.success('Pending deletion cancelled — investment restored');
+      afterMutation();
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to cancel deletion');
     } finally {
       setActionLoading(false);
     }
@@ -253,8 +319,47 @@ export default function InvestmentDetail() {
           </div>
         )}
 
+        {/* Pending extension banner */}
+        {isPendingExtension && (
+          <div className="flex items-center justify-between gap-3 bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-yellow-800">Extension Pending Super Admin Approval</p>
+              <p className="text-xs text-yellow-600 mt-0.5">
+                An admin requested an extension
+                {investment.pendingExtensionData?.new_duration && `: ${investment.pendingExtensionData.new_duration}`}.
+              </p>
+            </div>
+            {isSuperAdmin && (
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={handleCancelExtension} disabled={actionLoading} className="btn-secondary text-sm">Cancel</button>
+                <button onClick={handleConfirmExtension} disabled={actionLoading} className="btn-primary text-sm flex items-center gap-1">
+                  <CheckCircle size={14} /> Confirm Extension
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Pending deletion banner */}
+        {isPendingDeletion && (
+          <div className="flex items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-red-800">Deletion Pending Super Admin Approval</p>
+              <p className="text-xs text-red-500 mt-0.5">An admin requested this investment be deleted.</p>
+            </div>
+            {isSuperAdmin && (
+              <div className="flex gap-2 flex-shrink-0">
+                <button onClick={handleCancelDeletion} disabled={actionLoading} className="btn-secondary text-sm">Cancel</button>
+                <button onClick={handleConfirmDeletion} disabled={actionLoading} className="btn-danger text-sm flex items-center gap-1">
+                  <Trash2 size={14} /> Confirm Delete
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Action buttons — only shown for active investments */}
-        {!isPendingReview && !isPendingTermination && (
+        {!isAnyPendingState && (
           <div className="flex gap-2 flex-wrap">
             {canInitiate && (
               <button onClick={() => setShowInitiateModal(true)} disabled={actionLoading} className="btn-primary flex items-center gap-2 text-sm">
@@ -281,23 +386,25 @@ export default function InvestmentDetail() {
                 <XCircle size={15} /> {isSuperAdmin ? 'Terminate' : 'Request Termination'}
               </button>
             )}
-            {isSuperAdmin && (
-              <button onClick={() => setShowDeleteModal(true)} className="btn-danger flex items-center gap-2 text-sm">
-                <Trash2 size={15} />
+            {isAdminOrAbove && (
+              <button onClick={() => setShowDeleteModal(true)} className="btn-danger flex items-center gap-2 text-sm" title={isSuperAdmin ? 'Delete' : 'Request Deletion'}>
+                <Trash2 size={15} />{!isSuperAdmin && <span className="hidden sm:inline text-xs">Request Delete</span>}
               </button>
             )}
           </div>
         )}
-        {isPendingReview && isSuperAdmin && (
+        {isPendingReview && (
           <div className="flex gap-2">
             {isAdminOrAbove && (
               <Link to={`/investments/${id}/edit`} className="btn-secondary flex items-center gap-2 text-sm">
                 <Edit size={15} /> Edit
               </Link>
             )}
-            <button onClick={() => setShowDeleteModal(true)} className="btn-danger flex items-center gap-2 text-sm">
-              <Trash2 size={15} />
-            </button>
+            {isAdminOrAbove && (
+              <button onClick={() => setShowDeleteModal(true)} className="btn-danger flex items-center gap-2 text-sm">
+                <Trash2 size={15} />{!isSuperAdmin && <span className="hidden sm:inline text-xs">Request Delete</span>}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -526,17 +633,25 @@ export default function InvestmentDetail() {
             />
           </div>
           <div>
-            <label className="label">New Principal (₦) — for partial withdrawal</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="label mb-0">New Principal (₦)</label>
+              <button
+                type="button"
+                onClick={() => setExtendForm(p => ({ ...p, new_principal: String(Number(investment.maturityAmount)) }))}
+                className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 font-medium px-2.5 py-1 rounded-lg border border-blue-200 transition-colors"
+              >
+                Use full maturity: {formatCurrency(Number(investment.maturityAmount))}
+              </button>
+            </div>
             <input
               type="number" className="input"
-              placeholder={`Full reinvestment: ${formatCurrency(Number(investment.maturityAmount))}`}
+              placeholder={`Leave blank to reinvest ${formatCurrency(Number(investment.maturityAmount))} in full`}
               step="1000" min="0"
               value={extendForm.new_principal}
               onChange={e => setExtendForm(p => ({ ...p, new_principal: e.target.value }))}
             />
             <p className="text-xs text-gray-400 mt-1">
-              Current maturity amount: <strong>{formatCurrency(Number(investment.maturityAmount))}</strong>.
-              Leave blank to reinvest in full. Enter a lower amount if client is withdrawing some.
+              Leave blank to reinvest the full maturity amount. Enter a lower amount if client is withdrawing some.
             </p>
           </div>
           {extendForm.new_principal && parseFloat(extendForm.new_principal) < Number(investment.maturityAmount) && (
@@ -547,7 +662,9 @@ export default function InvestmentDetail() {
           <div className="flex gap-3 justify-end">
             <button type="button" onClick={() => setShowExtendModal(false)} className="btn-secondary">Cancel</button>
             <button type="submit" className="btn-primary" disabled={actionLoading}>
-              {actionLoading ? 'Extending...' : 'Extend Investment'}
+              {actionLoading
+                ? (isSuperAdmin ? 'Extending...' : 'Submitting...')
+                : (isSuperAdmin ? 'Extend Investment' : 'Submit Extension Request')}
             </button>
           </div>
         </form>
@@ -648,9 +765,11 @@ export default function InvestmentDetail() {
 
       <ConfirmModal
         isOpen={showDeleteModal}
-        title="Delete Investment"
-        message={`Are you sure you want to delete this investment for ${investment.clientName}? This cannot be undone.`}
-        confirmLabel="Delete"
+        title={isSuperAdmin ? 'Delete Investment' : 'Request Deletion'}
+        message={isSuperAdmin
+          ? `Are you sure you want to permanently delete this investment for ${investment.clientName}? This cannot be undone.`
+          : `Submit a deletion request for ${investment.clientName}'s investment? A super admin will need to confirm before it is deleted.`}
+        confirmLabel={isSuperAdmin ? 'Delete' : 'Submit Request'}
         onConfirm={handleDelete}
         onCancel={() => setShowDeleteModal(false)}
         loading={actionLoading}

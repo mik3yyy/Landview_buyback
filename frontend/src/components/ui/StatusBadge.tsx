@@ -24,6 +24,8 @@ export default function StatusBadge({ status, daysUntilMaturity }: Props) {
     payment_initiated: 'badge-payment_initiated',
     terminated: 'bg-red-100 text-red-700 text-xs font-medium px-2.5 py-0.5 rounded-full',
     pending_termination: 'bg-orange-100 text-orange-700 text-xs font-medium px-2.5 py-0.5 rounded-full',
+    pending_extension: 'bg-yellow-100 text-yellow-700 text-xs font-medium px-2.5 py-0.5 rounded-full',
+    pending_deletion: 'bg-red-100 text-red-700 text-xs font-medium px-2.5 py-0.5 rounded-full',
   };
 
   return (
