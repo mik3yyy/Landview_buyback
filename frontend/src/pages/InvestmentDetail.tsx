@@ -511,19 +511,63 @@ export default function InvestmentDetail() {
           {/* Extensions */}
           {investment.extensions?.length > 0 && (
             <div className="card">
-              <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2"><RefreshCw size={18} className="text-yellow-600" /> Extension History</h2>
-              <div className="space-y-3">
-                {investment.extensions.map((ext: any, i: number) => (
-                  <div key={ext.id} className="bg-yellow-50 rounded-lg p-3 text-sm">
-                    <div className="font-medium text-yellow-800">Extension #{i + 1}</div>
-                    <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
-                      <div><span className="text-gray-500">Added Duration:</span> {ext.newDuration}</div>
-                      <div><span className="text-gray-500">New Rate:</span> {Number(ext.newInterestRate)}%</div>
-                      <div><span className="text-gray-500">New Maturity:</span> {formatDate(ext.newMaturityDate)}</div>
-                      <div><span className="text-gray-500">Extended:</span> {formatDate(ext.extendedAt)}</div>
+              <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <RefreshCw size={18} className="text-yellow-600" /> Extension History
+                <span className="text-xs font-normal text-gray-400 ml-1">({investment.extensions.length} extension{investment.extensions.length !== 1 ? 's' : ''})</span>
+              </h2>
+              <div className="space-y-4">
+                {investment.extensions.map((ext: any, i: number) => {
+                  const principalChanged = ext.previousPrincipal && ext.newPrincipal &&
+                    Number(ext.previousPrincipal) !== Number(ext.newPrincipal);
+                  return (
+                    <div key={ext.id} className="border border-yellow-200 bg-yellow-50 rounded-xl p-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-semibold text-yellow-800">Extension #{i + 1}</span>
+                        <span className="text-xs text-gray-400">{formatDateTime(ext.extendedAt)}{ext.extendedByUser ? ` · by ${ext.extendedByUser.fullName}` : ''}</span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-x-6 gap-y-2 text-xs">
+                        {/* Duration */}
+                        <div className="space-y-0.5">
+                          <div className="text-gray-400 uppercase tracking-wide text-[10px]">Duration</div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="line-through text-gray-400">{ext.previousDuration}</span>
+                            <span className="text-gray-400">→</span>
+                            <span className="font-semibold text-yellow-800">{ext.newDuration}</span>
+                          </div>
+                        </div>
+                        {/* Rate */}
+                        <div className="space-y-0.5">
+                          <div className="text-gray-400 uppercase tracking-wide text-[10px]">Interest Rate</div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="line-through text-gray-400">{Number(ext.previousInterestRate)}%</span>
+                            <span className="text-gray-400">→</span>
+                            <span className="font-semibold text-yellow-800">{Number(ext.newInterestRate)}%</span>
+                          </div>
+                        </div>
+                        {/* Principal (only if changed) */}
+                        {principalChanged && (
+                          <div className="space-y-0.5">
+                            <div className="text-gray-400 uppercase tracking-wide text-[10px]">Principal</div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="line-through text-gray-400">{formatCurrency(Number(ext.previousPrincipal))}</span>
+                              <span className="text-gray-400">→</span>
+                              <span className="font-semibold text-yellow-800">{formatCurrency(Number(ext.newPrincipal))}</span>
+                            </div>
+                          </div>
+                        )}
+                        {/* Maturity dates */}
+                        <div className="space-y-0.5 col-span-2 sm:col-span-1">
+                          <div className="text-gray-400 uppercase tracking-wide text-[10px]">Maturity Date</div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="line-through text-gray-400">{formatDate(ext.previousMaturityDate)}</span>
+                            <span className="text-gray-400">→</span>
+                            <span className="font-semibold text-green-700">{formatDate(ext.newMaturityDate)}</span>
+                          </div>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           )}

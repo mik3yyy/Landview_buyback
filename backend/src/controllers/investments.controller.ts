@@ -117,7 +117,10 @@ export async function getInvestment(req: AuthRequest, res: Response) {
       createdByUser: { select: { fullName: true, email: true } },
       paymentInitiatedUser: { select: { fullName: true } },
       paymentCompletedUser: { select: { fullName: true } },
-      extensions: { orderBy: { extendedAt: 'desc' } },
+      extensions: {
+        orderBy: { extendedAt: 'asc' },
+        include: { extendedByUser: { select: { fullName: true } } },
+      },
       application: { select: { id: true } },
     },
   });
@@ -295,8 +298,11 @@ export async function updateInvestment(req: AuthRequest, res: Response) {
 async function applyExtension(existing: any, extensionData: any, userId: string) {
   const { new_duration, new_interest_rate, new_principal } = extensionData;
   const newInterestRate = new_interest_rate ? parseFloat(new_interest_rate) : Number(existing.interestRate);
-  const principalToUse = new_principal ? parseFloat(new_principal) : Number(existing.principal);
-  const newMaturityDate = calculateMaturityDate(new Date(), new_duration);
+  const previousPrincipal = Number(existing.principal);
+  const principalToUse = new_principal ? parseFloat(new_principal) : previousPrincipal;
+  // Extension starts from the previous maturity date, not today
+  const baseDate = new Date(existing.maturityDate);
+  const newMaturityDate = calculateMaturityDate(baseDate, new_duration);
   const newRoi = calculateROI(principalToUse, newInterestRate);
   const newMaturityAmount = calculateMaturityAmount(principalToUse, newRoi, 0);
 
@@ -308,6 +314,8 @@ async function applyExtension(existing: any, extensionData: any, userId: string)
         newDuration: new_duration,
         previousMaturityDate: existing.maturityDate,
         newMaturityDate,
+        previousPrincipal,
+        newPrincipal: principalToUse,
         previousInterestRate: existing.interestRate,
         newInterestRate,
         extendedBy: userId,

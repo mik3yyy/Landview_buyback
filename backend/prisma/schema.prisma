@@ -74,6 +74,7 @@ model User {
   paymentInitiated  Investment[] @relation("PaymentInitiatedBy")
   paymentCompleted  Investment[] @relation("PaymentCompletedBy")
   reviewedApplications ClientApplication[] @relation("ApplicationReviewer")
+  extensionsApplied    InvestmentExtension[] @relation("ExtendedByUser")
 
   @@map("users")
 }
@@ -133,10 +134,13 @@ model InvestmentExtension {
   newDuration     String
   previousMaturityDate DateTime
   newMaturityDate DateTime
-  previousInterestRate Decimal @db.Decimal(5, 2)
-  newInterestRate Decimal @db.Decimal(5, 2)
-  extendedAt      DateTime   @default(now())
-  extendedBy      String
+  previousPrincipal    Decimal?   @db.Decimal(15, 2)
+  newPrincipal         Decimal?   @db.Decimal(15, 2)
+  previousInterestRate Decimal    @db.Decimal(5, 2)
+  newInterestRate      Decimal    @db.Decimal(5, 2)
+  extendedAt           DateTime   @default(now())
+  extendedBy           String
+  extendedByUser       User?      @relation("ExtendedByUser", fields: [extendedBy], references: [id])
 
   @@map("investment_extensions")
 }
