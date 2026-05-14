@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { usersAPI } from '../../api/client';
+import { usersAPI, authAPI } from '../../api/client';
 import { formatDate } from '../../utils/formatters';
 import { useAuth } from '../../contexts/AuthContext';
 import Modal from '../../components/ui/Modal';
 import ConfirmModal from '../../components/ui/ConfirmModal';
-import { UserPlus, Edit, Trash2, CheckCircle, XCircle, Shield } from 'lucide-react';
+import { UserPlus, Edit, Trash2, CheckCircle, XCircle, Shield, Mail } from 'lucide-react';
 import { useBackgroundFetch } from '../../hooks/useBackgroundFetch';
 import toast from 'react-hot-toast';
 
@@ -22,12 +22,11 @@ const roleLabel: Record<string, string> = {
 
 interface UserFormData {
   email: string;
-  password: string;
   fullName: string;
   role: string;
 }
 
-const defaultForm: UserFormData = { email: '', password: '', fullName: '', role: 'accountant' };
+const defaultForm: UserFormData = { email: '', fullName: '', role: 'accountant' };
 
 export default function UserManagement() {
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -36,6 +35,7 @@ export default function UserManagement() {
   const [form, setForm] = useState<UserFormData>(defaultForm);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [sendingReset, setSendingReset] = useState<string | null>(null);
   const { isSuperAdmin, user: currentUser } = useAuth();
 
   const { data, loading, refreshing, error, refresh } = useBackgroundFetch<any[]>(
@@ -52,7 +52,7 @@ export default function UserManagement() {
   const openCreate = () => { setForm(defaultForm); setShowCreateModal(true); };
   const openEdit = (u: any) => {
     setEditingUser(u);
-    setForm({ email: u.email, password: '', fullName: u.fullName, role: u.role });
+    setForm({ email: u.email, fullName: u.fullName, role: u.role });
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -60,14 +60,12 @@ export default function UserManagement() {
     setSaving(true);
     try {
       if (editingUser) {
-        const payload: any = { fullName: form.fullName, role: form.role };
-        if (form.password) payload.password = form.password;
-        await usersAPI.update(editingUser.id, payload);
+        await usersAPI.update(editingUser.id, { fullName: form.fullName, role: form.role });
         toast.success('User updated');
         setEditingUser(null);
       } else {
-        await usersAPI.create(form);
-        toast.success('User created');
+        await usersAPI.create({ email: form.email, fullName: form.fullName, role: form.role });
+        toast.success('User created — login credentials sent to their email');
         setShowCreateModal(false);
       }
       refresh();
@@ -97,6 +95,18 @@ export default function UserManagement() {
       toast.error(err.response?.data?.error || 'Failed');
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const handleSendReset = async (u: any) => {
+    setSendingReset(u.id);
+    try {
+      await authAPI.adminSendReset(u.id);
+      toast.success(`Password reset link sent to ${u.email}`);
+    } catch (err: any) {
+      toast.error(err.response?.data?.error || 'Failed to send reset link');
+    } finally {
+      setSendingReset(null);
     }
   };
 
@@ -156,22 +166,28 @@ export default function UserManagement() {
                 <td className="px-5 py-3">
                   {u.id !== currentUser?.id && (isSuperAdmin || u.role !== 'super_admin') && (
                     <div className="flex items-center gap-2">
-                      {(isSuperAdmin || u.role !== 'super_admin') && (
-                        <button onClick={() => openEdit(u)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded">
-                          <Edit size={15} />
-                        </button>
-                      )}
-                      {(isSuperAdmin || u.role !== 'super_admin') && (
+                      <button onClick={() => openEdit(u)} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded" title="Edit">
+                        <Edit size={15} />
+                      </button>
+                      <button
+                        onClick={() => handleToggleActive(u)}
+                        className={`p-1.5 rounded ${u.isActive ? 'text-gray-400 hover:text-orange-600 hover:bg-orange-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}
+                        title={u.isActive ? 'Deactivate' : 'Activate'}
+                      >
+                        {u.isActive ? <XCircle size={15} /> : <CheckCircle size={15} />}
+                      </button>
+                      {isSuperAdmin && (
                         <button
-                          onClick={() => handleToggleActive(u)}
-                          className={`p-1.5 rounded ${u.isActive ? 'text-gray-400 hover:text-orange-600 hover:bg-orange-50' : 'text-gray-400 hover:text-green-600 hover:bg-green-50'}`}
-                          title={u.isActive ? 'Deactivate' : 'Activate'}
+                          onClick={() => handleSendReset(u)}
+                          disabled={sendingReset === u.id}
+                          className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+                          title="Send password reset link"
                         >
-                          {u.isActive ? <XCircle size={15} /> : <CheckCircle size={15} />}
+                          <Mail size={15} />
                         </button>
                       )}
                       {isSuperAdmin && u.role !== 'super_admin' && (
-                        <button onClick={() => setDeletingUser(u)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded">
+                        <button onClick={() => setDeletingUser(u)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded" title="Deactivate">
                           <Trash2 size={15} />
                         </button>
                       )}
@@ -188,27 +204,19 @@ export default function UserManagement() {
       <Modal
         isOpen={showCreateModal || !!editingUser}
         onClose={() => { setShowCreateModal(false); setEditingUser(null); }}
-        title={editingUser ? 'Edit User' : 'Create User'}
+        title={editingUser ? 'Edit User' : 'Add User'}
       >
         <form onSubmit={handleSave} className="space-y-4">
           {!editingUser && (
             <div>
               <label className="label">Email *</label>
-              <input type="email" className="input" value={form.email} onChange={setF('email')} required />
+              <input type="email" className="input" value={form.email} onChange={setF('email')} required autoFocus />
+              <p className="text-xs text-gray-400 mt-1">A temporary password will be emailed directly to this address.</p>
             </div>
           )}
           <div>
             <label className="label">Full Name *</label>
             <input type="text" className="input" value={form.fullName} onChange={setF('fullName')} required />
-          </div>
-          <div>
-            <label className="label">{editingUser ? 'New Password (leave blank to keep current)' : 'Password *'}</label>
-            <input
-              type="password" className="input" value={form.password} onChange={setF('password')}
-              minLength={editingUser ? 0 : 12}
-              required={!editingUser}
-              placeholder="Minimum 12 characters"
-            />
           </div>
           <div>
             <label className="label">Role *</label>
@@ -218,6 +226,11 @@ export default function UserManagement() {
               {isSuperAdmin && <option value="super_admin">Super Admin</option>}
             </select>
           </div>
+          {editingUser && isSuperAdmin && (
+            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+              To reset this user's password, use the <strong>Send Reset Link</strong> button (mail icon) on the user list.
+            </div>
+          )}
           <div className="flex gap-3 justify-end pt-2">
             <button type="button" className="btn-secondary" onClick={() => { setShowCreateModal(false); setEditingUser(null); }}>Cancel</button>
             <button type="submit" className="btn-primary" disabled={saving}>

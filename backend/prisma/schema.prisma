@@ -75,8 +75,36 @@ model User {
   paymentCompleted  Investment[] @relation("PaymentCompletedBy")
   reviewedApplications ClientApplication[] @relation("ApplicationReviewer")
   extensionsApplied    InvestmentExtension[] @relation("ExtendedByUser")
+  passwordResetTokens  PasswordResetToken[]
+  otpCodes             OtpCode[]
 
   @@map("users")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+model OtpCode {
+  id        String    @id @default(uuid())
+  sessionId String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  code      String
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("otp_codes")
 }
 
 model Investment {

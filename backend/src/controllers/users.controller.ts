@@ -1,8 +1,10 @@
+import crypto from 'crypto';
 import { Response } from 'express';
 import bcrypt from 'bcryptjs';
 import prisma from '../config/database';
 import { AuthRequest } from '../middleware/auth.middleware';
 import { createAuditLog } from '../utils/auditLogger';
+import { sendWelcomeEmail } from '../services/email.service';
 
 export async function listUsers(req: AuthRequest, res: Response) {
   const users = await prisma.user.findMany({
@@ -30,7 +32,7 @@ export async function getUser(req: AuthRequest, res: Response) {
 }
 
 export async function createUser(req: AuthRequest, res: Response) {
-  const { email, password, fullName, role } = req.body;
+  const { email, fullName, role } = req.body;
 
   // Super Admin can create any role; Admin can only create accountant
   if (req.user!.role === 'admin' && role !== 'accountant') {
@@ -40,11 +42,10 @@ export async function createUser(req: AuthRequest, res: Response) {
   const existing = await prisma.user.findUnique({ where: { email: email.toLowerCase() } });
   if (existing) return res.status(409).json({ error: 'Email already in use' });
 
-  if (password.length < 12) {
-    return res.status(400).json({ error: 'Password must be at least 12 characters' });
-  }
+  // Auto-generate a secure temporary password — never exposed to the creator
+  const tempPassword = crypto.randomBytes(10).toString('base64url').slice(0, 16);
+  const passwordHash = await bcrypt.hash(tempPassword, 12);
 
-  const passwordHash = await bcrypt.hash(password, 12);
   const user = await prisma.user.create({
     data: {
       email: email.toLowerCase(),
@@ -65,12 +66,24 @@ export async function createUser(req: AuthRequest, res: Response) {
     req,
   });
 
-  return res.status(201).json(user);
+  // Send credentials directly to the new user — creator never sees the password
+  try {
+    await sendWelcomeEmail({
+      to: user.email,
+      name: user.fullName,
+      tempPassword,
+      loginUrl: `${process.env.FRONTEND_URL}/login`,
+    });
+  } catch (err) {
+    console.error('Welcome email failed:', err);
+  }
+
+  return res.status(201).json({ ...user, message: 'Login credentials sent to user email' });
 }
 
 export async function updateUser(req: AuthRequest, res: Response) {
   const { id } = req.params;
-  const { fullName, role, isActive, password } = req.body;
+  const { fullName, role, isActive } = req.body;
 
   const existing = await prisma.user.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ error: 'User not found' });
@@ -84,10 +97,6 @@ export async function updateUser(req: AuthRequest, res: Response) {
   if (fullName) updateData.fullName = fullName;
   if (role && req.user!.role === 'super_admin') updateData.role = role;
   if (isActive !== undefined) updateData.isActive = isActive;
-  if (password) {
-    if (password.length < 12) return res.status(400).json({ error: 'Password must be at least 12 characters' });
-    updateData.passwordHash = await bcrypt.hash(password, 12);
-  }
 
   const updated = await prisma.user.update({
     where: { id },

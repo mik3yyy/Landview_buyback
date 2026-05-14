@@ -321,6 +321,89 @@ export async function sendApplicationApprovedEmail(data: {
   await send({ to: data.clientEmail, subject: 'Investment Activated — Welcome to Landview Buyback Programme', html });
 }
 
+export async function sendOtpEmail(data: {
+  to: string;
+  name: string;
+  code: string;
+}): Promise<void> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+      <div style="background: #1e3a5f; color: white; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
+        <h1 style="margin: 0; font-size: 20px;">Verification Code</h1>
+        <p style="margin: 6px 0 0; opacity: 0.8; font-size: 13px;">Landview Buyback — Admin Portal</p>
+      </div>
+      <div style="background: white; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e0e0e0; text-align: center;">
+        <p style="color: #444; font-size: 15px;">Hi <strong>${data.name}</strong>, here is your one-time login code:</p>
+        <div style="margin: 28px auto; display: inline-block; background: #f0f4ff; border: 2px solid #1e3a5f; border-radius: 12px; padding: 20px 40px;">
+          <span style="font-size: 40px; font-weight: bold; letter-spacing: 10px; color: #1e3a5f; font-family: monospace;">${data.code}</span>
+        </div>
+        <p style="color: #888; font-size: 13px; margin-top: 20px;">This code expires in <strong>10 minutes</strong>. Do not share it with anyone.</p>
+        <p style="color: #aaa; font-size: 12px; margin-top: 16px;">If you did not attempt to log in, contact your system administrator immediately.</p>
+      </div>
+    </div>
+  `;
+  await send({ to: data.to, subject: `${data.code} — Your Landview Login Code`, html });
+}
+
+export async function sendPasswordResetEmail(data: {
+  to: string;
+  name: string;
+  resetUrl: string;
+}): Promise<void> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+      <div style="background: #1e3a5f; color: white; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
+        <h1 style="margin: 0; font-size: 20px;">Reset Your Password</h1>
+        <p style="margin: 6px 0 0; opacity: 0.8; font-size: 13px;">Landview Buyback — Admin Portal</p>
+      </div>
+      <div style="background: white; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e0e0e0;">
+        <p>Hi <strong>${data.name}</strong>,</p>
+        <p style="color: #444;">A password reset was requested for your account. Click the button below to set a new password. This link expires in <strong>1 hour</strong>.</p>
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${data.resetUrl}" style="background: #1e3a5f; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 15px; font-weight: bold; display: inline-block;">
+            Reset Password →
+          </a>
+        </div>
+        <p style="color: #888; font-size: 12px;">Or copy this link: <a href="${data.resetUrl}" style="color: #1e3a5f;">${data.resetUrl}</a></p>
+        <hr style="border: none; border-top: 1px solid #eee; margin: 24px 0;" />
+        <p style="color: #aaa; font-size: 12px;">If you did not request a password reset, you can safely ignore this email. Your password will not change.</p>
+      </div>
+    </div>
+  `;
+  await send({ to: data.to, subject: 'Reset your password — Landview Buyback', html });
+}
+
+export async function sendWelcomeEmail(data: {
+  to: string;
+  name: string;
+  tempPassword: string;
+  loginUrl: string;
+}): Promise<void> {
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 520px; margin: 0 auto; padding: 20px; background: #f9f9f9;">
+      <div style="background: #1e3a5f; color: white; padding: 24px; border-radius: 8px 8px 0 0; text-align: center;">
+        <h1 style="margin: 0; font-size: 20px;">Welcome to Landview Buyback</h1>
+        <p style="margin: 6px 0 0; opacity: 0.8; font-size: 13px;">Admin Portal Access</p>
+      </div>
+      <div style="background: white; padding: 32px; border-radius: 0 0 8px 8px; border: 1px solid #e0e0e0;">
+        <p>Hi <strong>${data.name}</strong>,</p>
+        <p style="color: #444;">An account has been created for you on the Landview Buyback Investment Management System. Your temporary credentials are below — please log in and change your password immediately.</p>
+        <div style="background: #f0f4ff; border: 1px solid #c7d7f9; border-radius: 8px; padding: 20px; margin: 24px 0;">
+          <p style="margin: 0 0 8px; font-size: 13px; color: #666;"><strong>Temporary Password:</strong></p>
+          <p style="margin: 0; font-size: 22px; font-family: monospace; letter-spacing: 2px; color: #1e3a5f; font-weight: bold;">${data.tempPassword}</p>
+        </div>
+        <div style="text-align: center; margin: 28px 0;">
+          <a href="${data.loginUrl}" style="background: #1e3a5f; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-size: 15px; font-weight: bold; display: inline-block;">
+            Log In Now →
+          </a>
+        </div>
+        <p style="color: #dc2626; font-size: 13px; font-weight: bold;">⚠ Change your password immediately after first login. Do not share these credentials.</p>
+      </div>
+    </div>
+  `;
+  await send({ to: data.to, subject: 'Your Landview Buyback Account — Login Details', html });
+}
+
 export async function sendDailyPaymentDueList(superAdminEmails: string[], investments: any[]): Promise<void> {
   if (!investments.length || !superAdminEmails.length) return;
 

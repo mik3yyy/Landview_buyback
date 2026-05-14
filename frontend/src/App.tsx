@@ -21,6 +21,9 @@ import Applications from './pages/admin/Applications';
 import ApplicationDetail from './pages/admin/ApplicationDetail';
 import ApplicationEdit from './pages/ApplicationEdit';
 import InvestmentResponse from './pages/InvestmentResponse';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import ChangePassword from './pages/ChangePassword';
 
 function ProtectedRoute({ children, adminOnly = false, superAdminOnly = false }: {
   children: React.ReactNode;
@@ -48,6 +51,8 @@ function AppRoutes() {
       <Route path="/investment-response/:token" element={<InvestmentResponse />} />
 
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <Login />} />
+      <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPassword />} />
+      <Route path="/reset-password" element={user ? <Navigate to="/dashboard" replace /> : <ResetPassword />} />
 
       <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route index element={<Navigate to="/dashboard" replace />} />
@@ -61,6 +66,7 @@ function AppRoutes() {
         <Route path="/maturity-reminders" element={<MaturityReminders />} />
         <Route path="/ai-upload" element={<AIUpload />} />
         <Route path="/bulk-upload" element={<BulkUpload />} />
+        <Route path="/change-password" element={<ChangePassword />} />
 
         {/* Admin routes */}
         <Route path="/admin/applications" element={

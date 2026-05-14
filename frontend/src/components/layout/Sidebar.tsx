@@ -3,7 +3,7 @@ import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, FileText, PlusCircle,
   Users, ClipboardList, Settings, LogOut, Building2,
-  FileSpreadsheet, X, Inbox, Bell,
+  FileSpreadsheet, X, Inbox, Bell, KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -90,6 +90,13 @@ export default function Sidebar({ onClose }: Props) {
           </>
         )}
       </nav>
+
+      {/* Account actions */}
+      <div className="px-3 pb-2 border-t border-blue-800 pt-3">
+        <NavLink to="/change-password" className={linkClass} onClick={onClose}>
+          <KeyRound size={20} /> Change Password
+        </NavLink>
+      </div>
 
       {/* Logout */}
       <div className="px-3 py-4 border-t border-blue-800">
